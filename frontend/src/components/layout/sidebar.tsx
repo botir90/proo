@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  GraduationCap, LayoutDashboard, Users, BookOpen, Users2,
+  GraduationCap, LayoutDashboard, BookOpen, Users2,
   ClipboardCheck, CreditCard, BarChart3, Bell, UserCog, ChevronLeft,
   School,
 } from 'lucide-react';
@@ -13,7 +13,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { Button } from '../ui/button';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'] },
   { href: '/students', label: "O'quvchilar", icon: GraduationCap, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER'] },
   { href: '/teachers', label: "O'qituvchilar", icon: School, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
   { href: '/courses', label: 'Kurslar', icon: BookOpen, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER'] },

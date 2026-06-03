@@ -60,12 +60,13 @@ export class NotificationsService {
     return { message: `Notification sent to ${userIds.length} users` };
   }
 
-  async checkDebtAlerts() {
+  async checkDebtAlerts(adminUserId?: string) {
     const overduePayments = await this.prisma.payment.findMany({
       where: { status: { in: ['PENDING', 'OVERDUE'] }, dueDate: { lt: new Date() } },
       include: { student: { include: { user: true } } },
     });
 
+    let sentCount = 0;
     for (const payment of overduePayments) {
       const existing = await this.prisma.notification.findFirst({
         where: {
@@ -76,14 +77,27 @@ export class NotificationsService {
       });
       if (!existing) {
         await this.create(payment.student.userId, {
-          title: 'To\'lov muddati o\'tdi',
+          title: "To'lov muddati o'tdi",
           message: `${payment.month}/${payment.year} uchun ${Number(payment.debt).toLocaleString()} so'm qarzdorlik`,
           type: 'DEBT_ALERT',
           notificationData: { paymentId: payment.id, debt: payment.debt },
         });
+        sentCount++;
       }
     }
-    return { message: `${overduePayments.length} debt alerts checked` };
+
+    // Admin/Super Admin ga ham xulosa bildirishnoma yuborish
+    if (adminUserId) {
+      await this.create(adminUserId, {
+        title: sentCount > 0 ? `${sentCount} ta qarz ogohlantirishlar yuborildi` : "Barcha to'lovlar amalga oshirilgan",
+        message: sentCount > 0
+          ? `${overduePayments.length} ta muddati o'tgan to'lov topildi, ${sentCount} ta o'quvchiga xabar yuborildi`
+          : "Muddati o'tgan to'lovlar topilmadi",
+        type: sentCount > 0 ? 'WARNING' : 'SUCCESS',
+      });
+    }
+
+    return { message: `${overduePayments.length} ta to'lov tekshirildi, ${sentCount} ta xabar yuborildi`, data: { total: overduePayments.length, sent: sentCount } };
   }
 
   async remove(id: string, userId: string) {

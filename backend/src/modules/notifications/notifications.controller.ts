@@ -33,8 +33,8 @@ export class NotificationsController {
   @Post('check-debts')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
   @ApiOperation({ summary: 'Send debt alert notifications' })
-  checkDebts() {
-    return this.notificationsService.checkDebtAlerts();
+  checkDebts(@CurrentUser('id') userId: string) {
+    return this.notificationsService.checkDebtAlerts(userId);
   }
 
   @Patch(':id/read')

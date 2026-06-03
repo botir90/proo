@@ -3,39 +3,29 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   GraduationCap, School, BookOpen, Users2, TrendingUp, TrendingDown,
-  CreditCard, AlertCircle, Calendar,
+  CreditCard, AlertCircle, Calendar, CheckCircle, XCircle, Clock,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar,
-} from 'recharts';
-import { dashboardApi } from '@/lib/api';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { dashboardApi, paymentsApi, attendanceApi } from '@/lib/api';
 import { formatCurrency, getInitials, getAvatarUrl, getMonthName } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/stores/auth.store';
 
-const statusColors: Record<string, string> = {
-  ACTIVE: 'bg-green-500',
-  FINISHED: 'bg-gray-500',
-  PAUSED: 'bg-yellow-500',
-};
-
-export default function DashboardPage() {
+// ===================== ADMIN DASHBOARD =====================
+function AdminDashboard() {
   const { user } = useAuthStore();
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard', 'stats'],
     queryFn: () => dashboardApi.getStats(),
   });
-
   const { data: chartData, isLoading: chartLoading } = useQuery({
     queryKey: ['dashboard', 'revenue-chart'],
     queryFn: () => dashboardApi.getRevenueChart(),
   });
-
   const { data: groupsData } = useQuery({
     queryKey: ['dashboard', 'groups-overview'],
     queryFn: () => dashboardApi.getGroupsOverview(),
@@ -48,57 +38,20 @@ export default function DashboardPage() {
   const overduePayments = statsData?.data?.data?.overduePayments || [];
 
   const statCards = [
-    {
-      title: "Jami o'quvchilar",
-      value: stats?.totalStudents?.value || 0,
-      growth: stats?.totalStudents?.growth || 0,
-      icon: GraduationCap,
-      color: 'text-violet-600',
-      bg: 'bg-violet-50 dark:bg-violet-950',
-    },
-    {
-      title: "Jami o'qituvchilar",
-      value: stats?.totalTeachers?.value || 0,
-      growth: stats?.totalTeachers?.growth || 0,
-      icon: School,
-      color: 'text-blue-600',
-      bg: 'bg-blue-50 dark:bg-blue-950',
-    },
-    {
-      title: 'Faol kurslar',
-      value: stats?.totalCourses?.value || 0,
-      icon: BookOpen,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50 dark:bg-emerald-950',
-    },
-    {
-      title: 'Faol guruhlar',
-      value: stats?.activeGroups?.value || 0,
-      subtitle: `${stats?.activeGroups?.total || 0} ta jami`,
-      icon: Users2,
-      color: 'text-orange-600',
-      bg: 'bg-orange-50 dark:bg-orange-950',
-    },
-    {
-      title: "Bu oylik daromad",
-      value: formatCurrency(stats?.monthlyRevenue?.value || 0),
-      growth: stats?.monthlyRevenue?.growth,
-      icon: CreditCard,
-      color: 'text-pink-600',
-      bg: 'bg-pink-50 dark:bg-pink-950',
-      isRevenue: true,
-    },
+    { title: "Jami o'quvchilar", value: stats?.totalStudents?.value || 0, growth: stats?.totalStudents?.growth, icon: GraduationCap, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-950' },
+    { title: "Jami o'qituvchilar", value: stats?.totalTeachers?.value || 0, growth: stats?.totalTeachers?.growth, icon: School, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950' },
+    { title: 'Faol kurslar', value: stats?.totalCourses?.value || 0, icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
+    { title: 'Faol guruhlar', value: stats?.activeGroups?.value || 0, subtitle: `${stats?.activeGroups?.total || 0} ta jami`, icon: Users2, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-950' },
+    { title: 'Bu oylik daromad', value: formatCurrency(stats?.monthlyRevenue?.value || 0), growth: stats?.monthlyRevenue?.growth, icon: CreditCard, color: 'text-pink-600', bg: 'bg-pink-50 dark:bg-pink-950', isRevenue: true },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Xush kelibsiz, {user?.firstName}! Bu ko'rinish tizim holatini ko'rsatadi.</p>
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">Xush kelibsiz, {user?.firstName}!</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {statCards.map((card) => {
           const Icon = card.icon;
@@ -107,15 +60,11 @@ export default function DashboardPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardDescription className="text-xs font-medium">{card.title}</CardDescription>
-                  <div className={`p-2 rounded-lg ${card.bg}`}>
-                    <Icon className={`h-4 w-4 ${card.color}`} />
-                  </div>
+                  <div className={`p-2 rounded-lg ${card.bg}`}><Icon className={`h-4 w-4 ${card.color}`} /></div>
                 </div>
               </CardHeader>
               <CardContent>
-                {statsLoading ? (
-                  <Skeleton className="h-8 w-20" />
-                ) : (
+                {statsLoading ? <Skeleton className="h-8 w-20" /> : (
                   <>
                     <div className="text-2xl font-bold">{card.value}</div>
                     {card.subtitle && <p className="text-xs text-muted-foreground">{card.subtitle}</p>}
@@ -133,18 +82,14 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Charts & Tables */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Revenue Chart */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Oylik daromad</CardTitle>
             <CardDescription>Bu yilgi daromad dinamikasi</CardDescription>
           </CardHeader>
           <CardContent>
-            {chartLoading ? (
-              <Skeleton className="h-64 w-full" />
-            ) : (
+            {chartLoading ? <Skeleton className="h-64 w-full" /> : (
               <ResponsiveContainer width="100%" height={250}>
                 <AreaChart data={chart}>
                   <defs>
@@ -156,10 +101,7 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
-                  <Tooltip
-                    formatter={(value: number) => [formatCurrency(value), 'Daromad']}
-                    contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
-                  />
+                  <Tooltip formatter={(v: number) => [formatCurrency(v), 'Daromad']} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
                   <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#colorRevenue)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -167,7 +109,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Active Groups */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Faol guruhlar</CardTitle>
@@ -177,18 +118,13 @@ export default function DashboardPage() {
             {groups.slice(0, 6).map((group: any) => (
               <div key={group.id} className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div
-                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: group.course?.color || '#6366f1' }}
-                  />
+                  <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: group.course?.color || '#6366f1' }} />
                   <div className="min-w-0">
                     <p className="text-xs font-medium truncate">{group.name}</p>
                     <p className="text-xs text-muted-foreground">{group.course?.name}</p>
                   </div>
                 </div>
-                <Badge variant="secondary" className="text-xs flex-shrink-0">
-                  {group._count?.members || 0} ta
-                </Badge>
+                <Badge variant="secondary" className="text-xs flex-shrink-0">{group._count?.members || 0} ta</Badge>
               </div>
             ))}
           </CardContent>
@@ -196,11 +132,9 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Recent Students */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Yangi o'quvchilar</CardTitle>
-            <CardDescription>So'ngi qo'shilgan o'quvchilar</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {recentStudents.map((student: any) => (
@@ -221,14 +155,12 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Overdue Payments */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-destructive" />
               Muddati o'tgan to'lovlar
             </CardTitle>
-            <CardDescription>{overduePayments.length} ta to'lov kutilmoqda</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {overduePayments.slice(0, 5).map((payment: any) => (
@@ -238,15 +170,11 @@ export default function DashboardPage() {
                     <Calendar className="h-4 w-4 text-destructive" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {payment.student?.user?.firstName} {payment.student?.user?.lastName}
-                    </p>
+                    <p className="text-sm font-medium truncate">{payment.student?.user?.firstName} {payment.student?.user?.lastName}</p>
                     <p className="text-xs text-muted-foreground">{getMonthName(payment.month)} {payment.year}</p>
                   </div>
                 </div>
-                <span className="text-sm font-medium text-destructive flex-shrink-0">
-                  {formatCurrency(Number(payment.debt))}
-                </span>
+                <span className="text-sm font-medium text-destructive flex-shrink-0">{formatCurrency(Number(payment.debt))}</span>
               </div>
             ))}
           </CardContent>
@@ -254,4 +182,215 @@ export default function DashboardPage() {
       </div>
     </div>
   );
+}
+
+// ===================== STUDENT DASHBOARD =====================
+function StudentDashboard() {
+  const { user } = useAuthStore();
+  const studentId = user?.studentProfile?.id;
+
+  const { data: attendanceData } = useQuery({
+    queryKey: ['my-attendance', studentId],
+    queryFn: () => attendanceApi.getByStudent(studentId!, {}),
+    enabled: !!studentId,
+  });
+
+  const { data: debtData } = useQuery({
+    queryKey: ['my-debt', studentId],
+    queryFn: () => paymentsApi.getStudentDebt(studentId!),
+    enabled: !!studentId,
+  });
+
+  const attendance = attendanceData?.data?.data?.attendance || [];
+  const attendanceStats = attendanceData?.data?.data?.stats;
+  const debt = debtData?.data?.data;
+
+  const recentAttendance = attendance.slice(0, 7);
+
+  const statusConf: Record<string, any> = {
+    PRESENT: { label: 'Keldi', icon: CheckCircle, color: 'text-green-500' },
+    ABSENT:  { label: 'Kelmadi', icon: XCircle, color: 'text-red-500' },
+    LATE:    { label: 'Kechikdi', icon: Clock, color: 'text-yellow-500' },
+    EXCUSED: { label: 'Sababli', icon: AlertCircle, color: 'text-blue-500' },
+  };
+
+  const attendanceRate = attendanceStats?.total
+    ? Math.round((attendanceStats.present / attendanceStats.total) * 100) : 0;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Mening sahifam</h1>
+        <p className="text-muted-foreground">Xush kelibsiz, {user?.firstName}!</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground mb-1">Jami darslar</p>
+            <p className="text-2xl font-bold">{attendanceStats?.total || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground mb-1">Davomat %</p>
+            <p className={`text-2xl font-bold ${attendanceRate >= 80 ? 'text-green-600' : attendanceRate >= 60 ? 'text-yellow-600' : 'text-red-500'}`}>
+              {attendanceRate}%
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground mb-1">Kelmagan kunlar</p>
+            <p className="text-2xl font-bold text-red-500">{attendanceStats?.absent || 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground mb-1">Qarzdorlik</p>
+            <p className={`text-2xl font-bold ${(debt?.totalDebt || 0) > 0 ? 'text-red-500' : 'text-green-600'}`}>
+              {formatCurrency(debt?.totalDebt || 0)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Recent attendance */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">So'ngi davomatim</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {recentAttendance.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Davomat ma'lumoti yo'q</p>
+            ) : (
+              recentAttendance.map((a: any) => {
+                const conf = statusConf[a.status] || statusConf.PRESENT;
+                const Icon = conf.icon;
+                return (
+                  <div key={a.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50">
+                    <div>
+                      <p className="text-sm font-medium">{a.group?.course?.name || a.group?.name}</p>
+                      <p className="text-xs text-muted-foreground">{a.date ? new Date(a.date).toLocaleDateString('uz-UZ') : ''}</p>
+                    </div>
+                    <div className={`flex items-center gap-1 text-sm font-medium ${conf.color}`}>
+                      <Icon className="h-4 w-4" />
+                      {conf.label}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Payment status */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">To'lov holati</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(debt?.payments || []).length === 0 ? (
+              <div className="text-center py-6">
+                <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-2" />
+                <p className="text-sm font-medium text-green-600">Barcha to'lovlar amalga oshirilgan!</p>
+              </div>
+            ) : (
+              debt?.payments?.map((p: any) => (
+                <div key={p.id} className="flex items-center justify-between p-2 rounded-lg border border-destructive/20 bg-destructive/5">
+                  <div>
+                    <p className="text-sm font-medium">{p.group?.course?.name}</p>
+                    <p className="text-xs text-muted-foreground">{getMonthName(p.month)} {p.year}</p>
+                  </div>
+                  <span className="text-sm font-bold text-destructive">{formatCurrency(Number(p.debt))}</span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ===================== TEACHER DASHBOARD =====================
+function TeacherDashboard() {
+  const { user } = useAuthStore();
+
+  const { data: groupsData } = useQuery({
+    queryKey: ['my-groups'],
+    queryFn: () => import('@/lib/api').then(m => m.groupsApi.getAll({ limit: 50 })),
+  });
+
+  const groups = (groupsData?.data?.data?.items || []).filter(
+    (g: any) => g.teacher?.user?.id === user?.id
+  );
+  const activeGroups = groups.filter((g: any) => g.status === 'ACTIVE');
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">Xush kelibsiz, {user?.firstName} o'qituvchi!</p>
+      </div>
+
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground mb-1">Jami guruhlar</p>
+            <p className="text-2xl font-bold">{groups.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground mb-1">Faol guruhlar</p>
+            <p className="text-2xl font-bold text-green-600">{activeGroups.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground mb-1">Jami o'quvchilar</p>
+            <p className="text-2xl font-bold">{groups.reduce((s: number, g: any) => s + (g._count?.members || 0), 0)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Mening guruhlarim</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {activeGroups.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Faol guruhlar yo'q</p>
+          ) : (
+            activeGroups.map((group: any) => (
+              <div key={group.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: group.course?.color || '#6366f1' }} />
+                  <div>
+                    <p className="font-medium text-sm">{group.name}</p>
+                    <p className="text-xs text-muted-foreground">{group.course?.name} · {group.schedule}</p>
+                  </div>
+                </div>
+                <Badge variant="secondary">{group._count?.members || 0} o'quvchi</Badge>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ===================== MAIN COMPONENT =====================
+export default function DashboardPage() {
+  const { user } = useAuthStore();
+
+  if (!user) return null;
+
+  if (user.role === 'STUDENT') return <StudentDashboard />;
+  if (user.role === 'TEACHER') return <TeacherDashboard />;
+  return <AdminDashboard />;
 }
