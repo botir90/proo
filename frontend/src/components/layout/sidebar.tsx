@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   GraduationCap, LayoutDashboard, BookOpen, Users2,
   ClipboardCheck, CreditCard, BarChart3, Bell, UserCog, ChevronLeft,
-  School,
+  School, CalendarDays, ClipboardList, Wallet, Users, Trophy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui.store';
@@ -19,8 +19,14 @@ const navItems = [
   { href: '/courses', label: 'Kurslar', icon: BookOpen, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER'] },
   { href: '/groups', label: 'Guruhlar', icon: Users2, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER'] },
   { href: '/attendance', label: 'Davomat', icon: ClipboardCheck, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER'] },
+  { href: '/schedule', label: 'Jadval', icon: CalendarDays, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER'] },
   { href: '/payments', label: "To'lovlar", icon: CreditCard, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+  { href: '/my-payments', label: "To'lovlarim", icon: CreditCard, roles: ['STUDENT'] },
+  { href: '/expenses', label: 'Xarajatlar', icon: Wallet, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+  { href: '/homework', label: 'Vazifalar', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'] },
+  { href: '/quiz', label: 'Testlar', icon: Trophy, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'] },
   { href: '/reports', label: 'Hisobotlar', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+  { href: '/parent', label: 'Ota-ona portali', icon: Users, roles: ['PARENT'] },
   { href: '/notifications', label: 'Bildirishnomalar', icon: Bell, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'] },
   { href: '/users', label: 'Foydalanuvchilar', icon: UserCog, roles: ['SUPER_ADMIN', 'ADMIN'] },
 ];

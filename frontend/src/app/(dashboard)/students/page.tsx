@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -19,6 +19,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 import { studentsApi } from '@/lib/api';
 import { getInitials, getAvatarUrl, formatDate } from '@/lib/utils';
 import { Student } from '@/types';
@@ -26,6 +27,7 @@ import { StudentForm } from '@/components/forms/student-form';
 import { useDebounce } from '@/hooks/use-debounce';
 
 export default function StudentsPage() {
+  const router = useRouter();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [openForm, setOpenForm] = useState(false);
@@ -151,6 +153,10 @@ export default function StudentsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                          onClick={() => router.push(`/students/${student.id}`)}>
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8"
                           onClick={() => { setSelectedStudent(student); setOpenForm(true); }}>
                           <Pencil className="h-3.5 w-3.5" />

@@ -33,6 +33,7 @@ export function Navbar() {
     queryKey: ['notifications', 'unread'],
     queryFn: () => notificationsApi.getUnreadCount(),
     refetchInterval: 30000,
+    retry: false,
   });
 
   const unreadCount = unreadData?.data?.data?.count || 0;

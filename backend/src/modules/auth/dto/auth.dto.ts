@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsString,
+  IsNotEmpty,
   MinLength,
   MaxLength,
   IsOptional,
@@ -61,6 +62,7 @@ export class LoginDto {
 export class RefreshTokenDto {
   @ApiProperty()
   @IsString()
+  @IsNotEmpty()
   refreshToken: string;
 }
 

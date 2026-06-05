@@ -10,20 +10,21 @@ import { cn } from '@/lib/utils';
 import { GraduationCap } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, clearIfStale } = useAuthStore();
   const { sidebarOpen } = useUIStore();
+
   const router = useRouter();
   const [hydrated, setHydrated] = useState(false);
 
-  // Zustand persist localStorage dan o'qib bo'lguncha kut
   useEffect(() => {
+    const stale = clearIfStale();
     setHydrated(true);
+    if (stale) router.replace('/login');
   }, []);
 
   useEffect(() => {
-    if (hydrated && !isAuthenticated) {
-      router.replace('/login');
-    }
+    if (!hydrated) return;
+    if (!isAuthenticated) { router.replace('/login'); return; }
   }, [hydrated, isAuthenticated, router]);
 
   // Hydration kutilmoqda — loading spinner

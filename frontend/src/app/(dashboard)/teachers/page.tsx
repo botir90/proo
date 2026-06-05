@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Pencil, Trash2, Star, School } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Star, School, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -12,12 +12,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 import { teachersApi } from '@/lib/api';
 import { getInitials, getAvatarUrl, formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 import { TeacherForm } from '@/components/forms/teacher-form';
 
 export default function TeachersPage() {
+  const router = useRouter();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [openForm, setOpenForm] = useState(false);
@@ -123,6 +125,9 @@ export default function TeachersPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10" onClick={() => router.push(`/teachers/${teacher.id}`)}>
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setSelected(teacher); setOpenForm(true); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>

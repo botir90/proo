@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { attendanceApi, groupsApi } from '@/lib/api';
 import { getInitials, getAvatarUrl, formatDate } from '@/lib/utils';
 import { AttendanceStatus } from '@/types';
+import { useAuthStore } from '@/stores/auth.store';
 
 type AttendanceRecord = { studentId: string; status: AttendanceStatus; note?: string };
 
@@ -26,16 +27,27 @@ const statusConfig = {
 };
 
 export default function AttendancePage() {
+  const { user } = useAuthStore();
+  const isTeacher = user?.role === 'TEACHER';
+
   const [selectedGroup, setSelectedGroup] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [records, setRecords] = useState<Record<string, AttendanceRecord>>({});
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: groupsData } = useQuery({
+  // Teacher faqat o'z guruhlarini, boshqalar hammasini ko'radi
+  const { data: allGroupsData } = useQuery({
     queryKey: ['groups', 'all-list'],
     queryFn: () => groupsApi.getAll({ limit: 100 }),
+    enabled: !isTeacher,
   });
+  const { data: myGroupsData } = useQuery({
+    queryKey: ['groups', 'my-groups'],
+    queryFn: () => groupsApi.getMyGroups(),
+    enabled: isTeacher,
+  });
+  const groupsData = isTeacher ? myGroupsData : allGroupsData;
 
   const { data: groupData } = useQuery({
     queryKey: ['group-detail', selectedGroup],
@@ -61,7 +73,10 @@ export default function AttendancePage() {
     enabled: !!selectedGroup,
   });
 
-  const groups = groupsData?.data?.data?.items || [];
+  // Teacher uchun flat array, boshqalar uchun paginated items
+  const groups = isTeacher
+    ? (groupsData?.data?.data ?? [])
+    : (groupsData?.data?.data?.items ?? []);
   const groupDetails = groupData?.data?.data;
   const students = groupDetails?.members?.map((m: any) => m.student).filter(Boolean) || [];
   const existingAttendance: any[] = existingData?.data?.data || [];
@@ -114,7 +129,7 @@ export default function AttendancePage() {
     EXCUSED: students.filter((s: any) => getStudentStatus(s.id) === 'EXCUSED').length,
   };
 
-  const uniqueDates = [...new Set(history.map((a: any) => a.date?.split('T')[0]))].sort().reverse() as string[];
+  const uniqueDates = Array.from(new Set(history.map((a: any) => a.date?.split('T')[0] as string))).sort().reverse();
 
   return (
     <div className="space-y-6">

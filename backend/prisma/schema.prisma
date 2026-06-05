@@ -15,6 +15,7 @@ enum Role {
   MANAGER
   TEACHER
   STUDENT
+  PARENT
 }
 
 enum UserStatus {
@@ -110,6 +111,8 @@ model Teacher {
   user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   groups     Group[]
   attendance Attendance[]
+  homeworks  Homework[]
+  quizzes    Quiz[]
 
   @@map("teachers")
 }
@@ -126,10 +129,12 @@ model Student {
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  groupMembers GroupMember[]
-  attendance   Attendance[]
-  payments     Payment[]
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupMembers      GroupMember[]
+  attendance        Attendance[]
+  payments          Payment[]
+  homeworkSubmissions HomeworkSubmission[]
+  quizAttempts        QuizAttempt[]
 
   @@map("students")
 }
@@ -171,6 +176,8 @@ model Group {
   members    GroupMember[]
   attendance Attendance[]
   payments   Payment[]
+  homeworks  Homework[]
+  quizzes    Quiz[]
 
   @@map("groups")
 }
@@ -253,4 +260,98 @@ model Notification {
   sender User? @relation("SentNotifications", fields: [senderId], references: [id])
 
   @@map("notifications")
+}
+
+model Homework {
+  id          String    @id @default(uuid())
+  groupId     String
+  teacherId   String
+  title       String
+  description String?
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  group       Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher     Teacher            @relation(fields: [teacherId], references: [id])
+  submissions HomeworkSubmission[]
+
+  @@map("homeworks")
+}
+
+model HomeworkSubmission {
+  id         String   @id @default(uuid())
+  homeworkId String
+  studentId  String
+  note       String?
+  isDone     Boolean  @default(false)
+  doneAt     DateTime?
+  createdAt  DateTime @default(now())
+
+  homework   Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([homeworkId, studentId])
+  @@map("homework_submissions")
+}
+
+model Quiz {
+  id          String       @id @default(uuid())
+  groupId     String
+  teacherId   String
+  title       String
+  description String?
+  timeLimit   Int?         // daqiqalarda
+  isActive    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  group       Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher     Teacher      @relation(fields: [teacherId], references: [id])
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id       String   @id @default(uuid())
+  quizId   String
+  question String
+  options  String[]
+  answer   Int      // to'g'ri javob indeksi (0-3)
+  order    Int      @default(0)
+
+  quiz     Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_questions")
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  quizId      String
+  studentId   String
+  answers     Json     // { questionId: selectedIndex }
+  score       Int      @default(0)
+  total       Int      @default(0)
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, studentId])
+  @@map("quiz_attempts")
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  title       String
+  amount      Decimal  @db.Decimal(10, 2)
+  category    String
+  description String?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@map("expenses")
 }

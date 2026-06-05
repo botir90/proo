@@ -2,14 +2,33 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseUUIDPipe
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { PaymentsService } from './payments.service';
-import { CreatePaymentDto, UpdatePaymentDto, PaymentQueryDto } from './dto/payment.dto';
+import { CreatePaymentDto, UpdatePaymentDto, PaymentQueryDto, StudentPayDto } from './dto/payment.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Payments')
 @ApiBearerAuth('JWT-auth')
 @Controller('payments')
 export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}
+
+  @Get('my-payments')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Student o\'z to\'lovlarini ko\'rish' })
+  getMyPayments(@CurrentUser('id') userId: string) {
+    return this.paymentsService.getMyPayments(userId);
+  }
+
+  @Post(':id/pay')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Student to\'lovni amalga oshirish' })
+  payByStudent(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: StudentPayDto,
+  ) {
+    return this.paymentsService.payByStudent(id, userId, dto);
+  }
 
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)

@@ -2,20 +2,19 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Pencil, Trash2, UserCog, Shield } from 'lucide-react';
+import { Search, Trash2, UserCog, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { usersApi } from '@/lib/api';
 import { getInitials, getAvatarUrl, formatDate } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
-import { Role, UserStatus } from '@/types';
+import { Role } from '@/types';
 import { useAuthStore } from '@/stores/auth.store';
 
 const roleColors: Record<Role, string> = {
@@ -24,6 +23,7 @@ const roleColors: Record<Role, string> = {
   MANAGER: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
   TEACHER: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
   STUDENT: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+  PARENT: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300',
 };
 
 const roleLabels: Record<Role, string> = {
@@ -32,6 +32,7 @@ const roleLabels: Record<Role, string> = {
   MANAGER: 'Menejer',
   TEACHER: "O'qituvchi",
   STUDENT: "O'quvchi",
+  PARENT: 'Ota-ona',
 };
 
 export default function UsersPage() {

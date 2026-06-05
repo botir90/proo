@@ -31,6 +31,7 @@ export const coursesApi = {
 
 export const groupsApi = {
   getAll: (params?: any) => api.get('/groups', { params }),
+  getMyGroups: () => api.get('/groups/my-groups'),
   getOne: (id: string) => api.get(`/groups/${id}`),
   findOne: (id: string) => api.get(`/groups/${id}`),
   create: (data: any) => api.post('/groups', data),
@@ -74,11 +75,80 @@ export const notificationsApi = {
   delete: (id: string) => api.delete(`/notifications/${id}`),
 };
 
+export const homeworkApi = {
+  getByGroup: (groupId: string) => api.get(`/homework/group/${groupId}`),
+  getMyHomeworks: () => api.get('/homework/my'),
+  create: (data: { groupId: string; title: string; description?: string; dueDate?: string }) =>
+    api.post('/homework', data),
+  submit: (id: string, note?: string) => api.post(`/homework/${id}/submit`, { note }),
+  delete: (id: string) => api.delete(`/homework/${id}`),
+};
+
+export const quizApi = {
+  getByGroup: (groupId: string) => api.get(`/quiz/group/${groupId}`),
+  getMyQuizzes: () => api.get('/quiz/my'),
+  getOne: (id: string) => api.get(`/quiz/${id}`),
+  getResults: (id: string) => api.get(`/quiz/${id}/results`),
+  create: (data: any) => api.post('/quiz', data),
+  submit: (id: string, answers: Record<string, number>) => api.post(`/quiz/${id}/submit`, { answers }),
+  toggle: (id: string) => api.patch(`/quiz/${id}/toggle`),
+  delete: (id: string) => api.delete(`/quiz/${id}`),
+};
+
+export const expensesApi = {
+  getAll: (params?: { month?: number; year?: number; category?: string }) =>
+    api.get('/expenses', { params }),
+  create: (data: { title: string; amount: number; category: string; description?: string; date?: string }) =>
+    api.post('/expenses', data),
+  delete: (id: string) => api.delete(`/expenses/${id}`),
+};
+
+export const myPaymentsApi = {
+  getMyPayments: () => api.get('/payments/my-payments'),
+  pay: (id: string, data: { amount: number; method?: string; description?: string }) =>
+    api.post(`/payments/${id}/pay`, data),
+};
+
 export const reportsApi = {
   getStudentReport: (id: string) => api.get(`/reports/student/${id}`),
   getTeacherReport: (id: string) => api.get(`/reports/teacher/${id}`),
   getPaymentReport: (params?: any) => api.get('/reports/payments', { params }),
   getAttendanceReport: (params?: any) => api.get('/reports/attendance', { params }),
+};
+
+const EXPORT_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1') + '/reports/export';
+
+async function downloadBlob(url: string, filename?: string) {
+  const token = typeof window !== 'undefined'
+    ? JSON.parse(localStorage.getItem('educrm-auth') || '{}')?.state?.accessToken ?? ''
+    : '';
+  const blob = await fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.blob());
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  if (filename) a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+export const exportApi = {
+  downloadStudents: () =>
+    downloadBlob(`${EXPORT_BASE}/students`, `oquvchilar_${new Date().toISOString().slice(0, 10)}.xlsx`),
+
+  downloadPayments: (params?: { month?: number; year?: number; groupId?: string }) => {
+    const qs = params
+      ? '?' + new URLSearchParams(
+          Object.fromEntries(
+            Object.entries(params)
+              .filter(([, v]) => v != null)
+              .map(([k, v]) => [k, String(v)])
+          )
+        )
+      : '';
+    return downloadBlob(`${EXPORT_BASE}/payments${qs}`, `tolovlar_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  },
+
+  downloadAttendance: (groupId: string) =>
+    downloadBlob(`${EXPORT_BASE}/attendance/${groupId}`, `davomat_${new Date().toISOString().slice(0, 10)}.xlsx`),
 };
 
 export const usersApi = {

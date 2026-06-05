@@ -15,7 +15,7 @@ export interface JwtPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
-    private configService: ConfigService,
+    configService: ConfigService,
     private prisma: PrismaService,
   ) {
     super({
@@ -26,6 +26,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload) {
+    // PARENT role uchun alohida qaytarish
+    if (payload.role === 'PARENT') {
+      return {
+        id: payload.sub,
+        email: payload.email,
+        role: 'PARENT',
+        status: 'ACTIVE',
+        studentId: (payload as any).studentId,
+      };
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {

@@ -5,12 +5,20 @@ import { GroupsService } from './groups.service';
 import { CreateGroupDto, UpdateGroupDto, AddStudentToGroupDto } from './dto/group.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Groups')
 @ApiBearerAuth('JWT-auth')
 @Controller('groups')
 export class GroupsController {
   constructor(private groupsService: GroupsService) {}
+
+  @Get('my-groups')
+  @Roles(Role.TEACHER)
+  @ApiOperation({ summary: 'Teacher o\'z guruhlarini ko\'rish' })
+  getMyGroups(@CurrentUser('id') userId: string) {
+    return this.groupsService.getTeacherGroups(userId);
+  }
 
   @Get()
   @ApiOperation({ summary: 'Get all groups' })

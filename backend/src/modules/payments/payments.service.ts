@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreatePaymentDto, UpdatePaymentDto, PaymentQueryDto } from './dto/payment.dto';
+import { CreatePaymentDto, UpdatePaymentDto, PaymentQueryDto, StudentPayDto } from './dto/payment.dto';
 import { paginate, getPaginationParams } from '../../common/utils/pagination.util';
 
 @Injectable()
@@ -134,6 +134,58 @@ export class PaymentsService {
 
     const totalRevenue = monthly.reduce((sum, m) => sum + m.revenue, 0);
     return { message: 'Monthly revenue', data: { monthly, totalRevenue, year } };
+  }
+
+  async getMyPayments(userId: string) {
+    const student = await this.prisma.student.findUnique({ where: { userId } });
+    if (!student) throw new NotFoundException('Student profil topilmadi');
+
+    const payments = await this.prisma.payment.findMany({
+      where: { studentId: student.id },
+      include: {
+        group: {
+          include: { course: { select: { name: true, color: true } } },
+        },
+      },
+      orderBy: [{ year: 'desc' }, { month: 'desc' }],
+    });
+
+    const totalDebt = payments.reduce((sum, p) => sum + Number(p.debt), 0);
+    const totalPaid = payments.reduce((sum, p) => sum + Number(p.paidAmount), 0);
+    const pendingCount = payments.filter((p) => ['PENDING', 'OVERDUE', 'PARTIAL'].includes(p.status)).length;
+
+    return { message: 'My payments', data: { payments, totalDebt, totalPaid, pendingCount } };
+  }
+
+  async payByStudent(paymentId: string, userId: string, dto: StudentPayDto) {
+    const student = await this.prisma.student.findUnique({ where: { userId } });
+    if (!student) throw new NotFoundException('Student profil topilmadi');
+
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new NotFoundException('To\'lov topilmadi');
+    if (payment.studentId !== student.id) throw new ForbiddenException('Ruxsat yo\'q');
+    if (payment.status === 'PAID') throw new BadRequestException('Bu to\'lov allaqachon to\'langan');
+
+    const newPaidAmount = Number(payment.paidAmount) + dto.amount;
+    const newDebt = Math.max(0, Number(payment.amount) - newPaidAmount);
+    const newStatus: any = newPaidAmount >= Number(payment.amount) ? 'PAID' : 'PARTIAL';
+
+    const updated = await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: {
+        paidAmount: newPaidAmount,
+        debt: newDebt,
+        status: newStatus,
+        method: dto.method ?? 'ONLINE',
+        paidDate: new Date(),
+        description: dto.description,
+      },
+      include: {
+        group: { include: { course: { select: { name: true } } } },
+      },
+    });
+
+    return { message: "To'lov muvaffaqiyatli amalga oshirildi", data: updated };
   }
 
   async generateMonthlyInvoices(groupId: string, month: number, year: number) {

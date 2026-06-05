@@ -1,11 +1,12 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bell, CheckCheck, Trash2, Info, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, Info, AlertCircle, CheckCircle, XCircle, MessageSquare, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { notificationsApi } from '@/lib/api';
+import api from '@/lib/axios';
 import { useToast } from '@/hooks/use-toast';
 import { NotificationType } from '@/types';
 import { formatDate } from '@/lib/utils';
@@ -21,10 +22,23 @@ const typeConfig: Record<NotificationType, { icon: any; color: string; bg: strin
   SYSTEM: { icon: Bell, color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-950' },
 };
 
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'];
+
 export default function NotificationsPage() {
   const { user } = useAuthStore();
+  const isAdmin = ADMIN_ROLES.includes(user?.role ?? '');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const debtAlertMutation = useMutation({
+    mutationFn: (withSms: boolean) => api.post('/notifications/check-debts', { withSms }),
+    onSuccess: (res) => {
+      const d = res.data?.data;
+      toast({ title: `${d?.notificationsSent ?? 0} ta bildirishnoma${d?.smsSent ? `, ${d.smsSent} ta SMS` : ''} yuborildi` });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+    onError: (e: any) => toast({ title: 'Xato', description: e.response?.data?.message, variant: 'destructive' }),
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications'],
@@ -62,6 +76,48 @@ export default function NotificationsPage() {
           </Button>
         )}
       </div>
+
+      {/* Admin: Qarz ogohlantirish + SMS paneli */}
+      {isAdmin && (
+        <Card className="border-orange-200 bg-orange-50/50 dark:bg-orange-950/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-orange-500" />
+              Qarz ogohlantirishlari
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Muddati o'tgan to'lovlar bo'lgan o'quvchilarga bildirishnoma va SMS yuborish
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={debtAlertMutation.isPending}
+                onClick={() => debtAlertMutation.mutate(false)}
+              >
+                {debtAlertMutation.isPending && !debtAlertMutation.variables
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <Bell className="h-3.5 w-3.5" />}
+                Faqat bildirishnoma
+              </Button>
+              <Button
+                size="sm"
+                className="gap-2 bg-orange-500 hover:bg-orange-600"
+                disabled={debtAlertMutation.isPending}
+                onClick={() => debtAlertMutation.mutate(true)}
+              >
+                {debtAlertMutation.isPending
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <MessageSquare className="h-3.5 w-3.5" />}
+                Bildirishnoma + SMS
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">

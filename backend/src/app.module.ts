@@ -14,6 +14,9 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { HomeworkModule } from './modules/homework/homework.module';
+import { ExpensesModule } from './modules/expenses/expenses.module';
+import { QuizModule } from './modules/quiz/quiz.module';
 
 @Module({
   imports: [
@@ -31,6 +34,9 @@ import { ReportsModule } from './modules/reports/reports.module';
     DashboardModule,
     NotificationsModule,
     ReportsModule,
+    HomeworkModule,
+    ExpensesModule,
+    QuizModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

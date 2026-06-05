@@ -14,8 +14,11 @@ import { coursesApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 import { CourseForm } from '@/components/forms/course-form';
+import { useAuthStore } from '@/stores/auth.store';
 
 export default function CoursesPage() {
+  const { user } = useAuthStore();
+  const isTeacher = user?.role === 'TEACHER';
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [openForm, setOpenForm] = useState(false);
@@ -46,9 +49,11 @@ export default function CoursesPage() {
           <h1 className="text-2xl font-bold">Kurslar</h1>
           <p className="text-muted-foreground">Jami: {meta?.total || 0} ta kurs</p>
         </div>
-        <Button onClick={() => { setSelected(null); setOpenForm(true); }}>
-          <Plus className="mr-2 h-4 w-4" /> Qo'shish
-        </Button>
+        {!isTeacher && (
+          <Button onClick={() => { setSelected(null); setOpenForm(true); }}>
+            <Plus className="mr-2 h-4 w-4" /> Qo'shish
+          </Button>
+        )}
       </div>
 
       <div className="relative max-w-sm">
@@ -95,14 +100,16 @@ export default function CoursesPage() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="pt-0 gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelected(course); setOpenForm(true); }}>
-                  <Pencil className="mr-1.5 h-3.5 w-3.5" /> Tahrirlash
-                </Button>
-                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteId(course.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </CardFooter>
+              {!isTeacher && (
+                <CardFooter className="pt-0 gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => { setSelected(course); setOpenForm(true); }}>
+                    <Pencil className="mr-1.5 h-3.5 w-3.5" /> Tahrirlash
+                  </Button>
+                  <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteId(course.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </CardFooter>
+              )}
             </Card>
           ))}
         </div>

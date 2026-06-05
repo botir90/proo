@@ -3,17 +3,11 @@ import {
   Post,
   Get,
   Body,
-  UseGuards,
   Patch,
   HttpCode,
   HttpStatus,
-  UploadedFile,
-  UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import {
   RegisterDto,
@@ -76,6 +70,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Reset password with token' })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @Public()
+  @Post('parent-login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Ota-ona portali — telefon raqam orqali kirish' })
+  parentLogin(@Body() body: { parentPhone: string }) {
+    return this.authService.parentLogin(body.parentPhone);
   }
 
   @Patch('change-password')

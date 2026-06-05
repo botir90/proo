@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Delete, Param, Query, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Query, ParseUUIDPipe, Post, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { NotificationsService } from './notifications.service';
@@ -32,9 +32,22 @@ export class NotificationsController {
 
   @Post('check-debts')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
-  @ApiOperation({ summary: 'Send debt alert notifications' })
-  checkDebts(@CurrentUser('id') userId: string) {
-    return this.notificationsService.checkDebtAlerts(userId);
+  @ApiOperation({ summary: 'Send debt alert notifications (withSms=true qo\'shilsa SMS ham)' })
+  checkDebts(
+    @CurrentUser('id') userId: string,
+    @Body() body: { withSms?: boolean },
+  ) {
+    return this.notificationsService.checkDebtAlerts(userId, body.withSms ?? false);
+  }
+
+  @Post('sms/group/:groupId')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
+  @ApiOperation({ summary: 'Guruh o\'quvchilariga SMS yuborish' })
+  sendSmsToGroup(
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Body() body: { message: string },
+  ) {
+    return this.notificationsService.sendSmsToGroup(groupId, body.message);
   }
 
   @Patch(':id/read')

@@ -23,6 +23,24 @@ export class UpdatePaymentDto {
   @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
 }
 
+export class StudentPayDto {
+  @ApiProperty({ example: 800000, description: "To'lanadigan summa" })
+  @IsNumber()
+  @Min(1)
+  @Type(() => Number)
+  amount: number;
+
+  @ApiPropertyOptional({ enum: PaymentMethod, default: PaymentMethod.ONLINE })
+  @IsOptional()
+  @IsEnum(PaymentMethod)
+  method?: PaymentMethod;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+}
+
 export class PaymentQueryDto {
   @ApiPropertyOptional() @IsOptional() @IsUUID() studentId?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() groupId?: string;

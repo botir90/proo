@@ -1,4 +1,4 @@
-export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'TEACHER' | 'STUDENT';
+export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'MANAGER' | 'TEACHER' | 'STUDENT' | 'PARENT';
 export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING';
 export type GroupStatus = 'ACTIVE' | 'FINISHED' | 'PAUSED';
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';

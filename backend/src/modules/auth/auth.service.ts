@@ -78,16 +78,20 @@ export class AuthService {
       });
 
       const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-      if (!user || !user.refreshToken) throw new UnauthorizedException('Access denied');
+      if (!user || !user.refreshToken || user.status !== 'ACTIVE') {
+        throw new UnauthorizedException('Access denied');
+      }
 
-      const isMatch = await bcrypt.compare(dto.refreshToken, user.refreshToken);
+      const signature = dto.refreshToken.split('.')[2];
+      const isMatch = await bcrypt.compare(signature, user.refreshToken);
       if (!isMatch) throw new UnauthorizedException('Invalid refresh token');
 
       const tokens = await this.generateTokens(user.id, user.email, user.role);
       await this.updateRefreshToken(user.id, tokens.refreshToken);
 
       return { message: 'Tokens refreshed', data: tokens };
-    } catch {
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }
@@ -146,9 +150,45 @@ export class AuthService {
     if (!isMatch) throw new BadRequestException('Current password is incorrect');
 
     const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
-    await this.prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword, refreshToken: null },
+    });
 
     return { message: 'Password changed successfully' };
+  }
+
+  async parentLogin(parentPhone: string) {
+    // parentPhone bo'yicha student topamiz
+    const student = await this.prisma.student.findFirst({
+      where: { parentPhone },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, email: true, status: true } },
+      },
+    });
+
+    if (!student) throw new UnauthorizedException('Bu telefon raqam bilan bog\'liq o\'quvchi topilmadi');
+    if (student.user.status !== 'ACTIVE') throw new UnauthorizedException('O\'quvchi hisobi nofaol');
+
+    // Parent uchun vaqtinchalik token — student ID si bilan, lekin PARENT role bilan
+    const payload = { sub: student.userId, email: student.user.email, role: 'PARENT', studentId: student.id };
+    const accessToken = await this.jwtService.signAsync(payload, {
+      secret: this.configService.get('JWT_ACCESS_SECRET'),
+      expiresIn: '8h',
+    });
+
+    return {
+      message: 'Ota-ona portaliga xush kelibsiz',
+      data: {
+        accessToken,
+        student: {
+          id: student.id,
+          userId: student.userId,
+          firstName: student.user.firstName,
+          lastName: student.user.lastName,
+        },
+      },
+    };
   }
 
   async getProfile(userId: string) {
@@ -189,7 +229,9 @@ export class AuthService {
   }
 
   private async updateRefreshToken(userId: string, refreshToken: string) {
-    const hashed = await bcrypt.hash(refreshToken, 10);
+    // JWT signature only (43 bytes for HS256) — stays within bcrypt's 72-byte limit
+    const signature = refreshToken.split('.')[2];
+    const hashed = await bcrypt.hash(signature, 10);
     await this.prisma.user.update({ where: { id: userId }, data: { refreshToken: hashed } });
   }
 }

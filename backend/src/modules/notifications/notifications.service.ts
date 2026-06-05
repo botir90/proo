@@ -3,10 +3,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationType } from '@prisma/client';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { paginate, getPaginationParams } from '../../common/utils/pagination.util';
+import { SmsService } from './sms.service';
 
 @Injectable()
 export class NotificationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private smsService: SmsService,
+  ) {}
 
   async findAll(userId: string, dto: PaginationDto) {
     const { take, skip } = getPaginationParams(dto.page, dto.limit);
@@ -60,44 +64,78 @@ export class NotificationsService {
     return { message: `Notification sent to ${userIds.length} users` };
   }
 
-  async checkDebtAlerts(adminUserId?: string) {
+  async checkDebtAlerts(adminUserId?: string, withSms = false) {
     const overduePayments = await this.prisma.payment.findMany({
       where: { status: { in: ['PENDING', 'OVERDUE'] }, dueDate: { lt: new Date() } },
-      include: { student: { include: { user: true } } },
+      include: {
+        student: {
+          include: {
+            user: { select: { id: true, firstName: true, lastName: true, phone: true } },
+          },
+        },
+        group: { include: { course: { select: { name: true } } } },
+      },
     });
 
     let sentCount = 0;
+    let smsSent = 0;
+
     for (const payment of overduePayments) {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const existing = await this.prisma.notification.findFirst({
-        where: {
-          userId: payment.student.userId,
-          type: 'DEBT_ALERT',
-          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-        },
+        where: { userId: payment.student.userId, type: 'DEBT_ALERT', createdAt: { gte: oneDayAgo } },
       });
+
       if (!existing) {
+        const debt = Number(payment.debt).toLocaleString('uz-UZ');
         await this.create(payment.student.userId, {
           title: "To'lov muddati o'tdi",
-          message: `${payment.month}/${payment.year} uchun ${Number(payment.debt).toLocaleString()} so'm qarzdorlik`,
+          message: `${payment.group?.course?.name} — ${payment.month}/${payment.year} uchun ${debt} so'm qarzdorlik`,
           type: 'DEBT_ALERT',
           notificationData: { paymentId: payment.id, debt: payment.debt },
         });
         sentCount++;
+
+        // Ixtiyoriy SMS yuborish
+        if (withSms && payment.student.user.phone) {
+          const smsText =
+            `EduCRM: Hurmatli ${payment.student.user.firstName}, ` +
+            `${payment.group?.course?.name} kursi uchun ${debt} so'm ` +
+            `to'lovingiz muddati o'tgan. Iltimos to'lang.`;
+          const ok = await this.smsService.send(payment.student.user.phone, smsText);
+          if (ok) smsSent++;
+        }
       }
     }
 
-    // Admin/Super Admin ga ham xulosa bildirishnoma yuborish
     if (adminUserId) {
       await this.create(adminUserId, {
         title: sentCount > 0 ? `${sentCount} ta qarz ogohlantirishlar yuborildi` : "Barcha to'lovlar amalga oshirilgan",
         message: sentCount > 0
-          ? `${overduePayments.length} ta muddati o'tgan to'lov topildi, ${sentCount} ta o'quvchiga xabar yuborildi`
+          ? `${overduePayments.length} ta muddati o'tgan to'lov, ${sentCount} ta in-app` +
+            (withSms ? `, ${smsSent} ta SMS yuborildi` : '')
           : "Muddati o'tgan to'lovlar topilmadi",
         type: sentCount > 0 ? 'WARNING' : 'SUCCESS',
       });
     }
 
-    return { message: `${overduePayments.length} ta to'lov tekshirildi, ${sentCount} ta xabar yuborildi`, data: { total: overduePayments.length, sent: sentCount } };
+    return {
+      message: `${overduePayments.length} ta to'lov tekshirildi`,
+      data: { total: overduePayments.length, notificationsSent: sentCount, smsSent },
+    };
+  }
+
+  async sendSmsToGroup(groupId: string, message: string) {
+    const members = await this.prisma.groupMember.findMany({
+      where: { groupId, isActive: true },
+      include: { student: { include: { user: { select: { phone: true } } } } },
+    });
+    const phones = members
+      .map(m => m.student.user.phone)
+      .filter((p): p is string => !!p);
+
+    const result = await this.smsService.sendBulk(phones, message);
+    return { message: `SMS yuborildi`, data: result };
   }
 
   async remove(id: string, userId: string) {
