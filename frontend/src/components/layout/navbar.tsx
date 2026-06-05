@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Moon, Sun, Bell, LogOut, User, Settings, ChevronDown } from 'lucide-react';
+import { Moon, Sun, Bell, LogOut, User, Settings, ChevronDown, Menu } from 'lucide-react';
+import { useUIStore } from '@/stores/ui.store';
 import { useTheme } from 'next-themes';
 import { Button } from '../ui/button';
 import {
@@ -27,6 +28,7 @@ const roleLabels: Record<string, string> = {
 export function Navbar() {
   const { user, logout } = useAuthStore();
   const { theme, setTheme } = useTheme();
+  const { toggleSidebar } = useUIStore();
   const router = useRouter();
 
   const { data: unreadData } = useQuery({
@@ -49,6 +51,9 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-30 h-16 border-b bg-background/80 backdrop-blur-md flex items-center justify-between px-6 gap-4">
+      <Button variant="ghost" size="icon" onClick={toggleSidebar} className="md:hidden text-muted-foreground">
+        <Menu className="h-5 w-5" />
+      </Button>
       <div className="flex-1" />
 
       <div className="flex items-center gap-2">

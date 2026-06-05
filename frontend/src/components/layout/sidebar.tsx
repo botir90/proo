@@ -41,10 +41,20 @@ export function Sidebar() {
   );
 
   return (
+    <>
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden"
+          onClick={toggleSidebar}
+        />
+      )}
     <aside
       className={cn(
         'fixed left-0 top-0 z-40 h-screen transition-all duration-300 bg-sidebar border-r border-sidebar-border flex flex-col',
-        sidebarOpen ? 'w-64' : 'w-16',
+        sidebarOpen
+          ? 'w-64 translate-x-0'
+          : 'w-64 -translate-x-full md:translate-x-0 md:w-16',
       )}
     >
       {/* Header */}
@@ -111,5 +121,6 @@ export function Sidebar() {
         </div>
       )}
     </aside>
+    </>
   );
 }
