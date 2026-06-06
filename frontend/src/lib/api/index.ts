@@ -81,6 +81,8 @@ export const homeworkApi = {
   create: (data: { groupId: string; title: string; description?: string; dueDate?: string }) =>
     api.post('/homework', data),
   submit: (id: string, note?: string) => api.post(`/homework/${id}/submit`, { note }),
+  getSubmissions: (id: string) => api.get(`/homework/${id}/submissions`),
+  grade: (submissionId: string, points: number) => api.patch(`/homework/submissions/${submissionId}/grade`, { points }),
   delete: (id: string) => api.delete(`/homework/${id}`),
 };
 

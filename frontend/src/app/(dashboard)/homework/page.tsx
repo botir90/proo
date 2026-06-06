@@ -2,23 +2,27 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Plus, Trash2, CheckCircle2, Clock, Loader2, CalendarDays } from 'lucide-react';
+import {
+  BookOpen, Plus, Trash2, CheckCircle2, Clock,
+  Loader2, CalendarDays, Star, Users, Trophy,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { homeworkApi, groupsApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getInitials, getAvatarUrl } from '@/lib/utils';
 
 export default function HomeworkPage() {
   const { user } = useAuthStore();
-  const isTeacher = user?.role === 'TEACHER';
+  const isTeacher = ['TEACHER', 'SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role || '');
   const isStudent = user?.role === 'STUDENT';
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -30,40 +34,48 @@ export default function HomeworkPage() {
   const [dueDate, setDueDate] = useState('');
   const [viewGroup, setViewGroup] = useState('');
 
-  // Teacher: o'z guruhlari
+  // Topshiriqlar dialogi
+  const [submissionsHW, setSubmissionsHW] = useState<any>(null);
+  const [pointsMap, setPointsMap] = useState<Record<string, string>>({});
+
   const { data: myGroupsData } = useQuery({
     queryKey: ['groups', 'my-groups'],
     queryFn: () => groupsApi.getMyGroups(),
-    enabled: isTeacher,
+    enabled: isTeacher && user?.role === 'TEACHER',
   });
 
-  // Admin: barcha guruhlar
   const { data: allGroupsData } = useQuery({
     queryKey: ['groups', 'all-list'],
     queryFn: () => groupsApi.getAll({ limit: 100 }),
-    enabled: !isTeacher && !isStudent,
+    enabled: isTeacher && user?.role !== 'TEACHER',
   });
 
-  // Tanlangan guruh vazifalari (teacher/admin)
   const { data: groupHWData, isLoading: groupHWLoading } = useQuery({
     queryKey: ['homework', 'group', viewGroup],
     queryFn: () => homeworkApi.getByGroup(viewGroup),
     enabled: !!viewGroup && !isStudent,
   });
 
-  // Student: o'z vazifalari
   const { data: myHWData, isLoading: myHWLoading } = useQuery({
     queryKey: ['homework', 'my'],
     queryFn: () => homeworkApi.getMyHomeworks(),
     enabled: isStudent,
   });
 
-  const groups = isTeacher
+  // Topshiriqlar (ustoz uchun)
+  const { data: submissionsData, isLoading: submissionsLoading } = useQuery({
+    queryKey: ['homework', 'submissions', submissionsHW?.id],
+    queryFn: () => homeworkApi.getSubmissions(submissionsHW.id),
+    enabled: !!submissionsHW?.id,
+  });
+
+  const groups = user?.role === 'TEACHER'
     ? (myGroupsData?.data?.data ?? [])
     : (allGroupsData?.data?.data?.items ?? []);
 
   const groupHomeworks: any[] = groupHWData?.data?.data ?? [];
-  const myHomeworks: any[] = myHWData?.data?.data ?? [];
+  const myHomeworks: any[]    = myHWData?.data?.data ?? [];
+  const submissions: any[]    = submissionsData?.data?.data ?? [];
 
   const createMutation = useMutation({
     mutationFn: () => homeworkApi.create({ groupId: selectedGroup, title, description, dueDate: dueDate || undefined }),
@@ -94,7 +106,18 @@ export default function HomeworkPage() {
     onError: (e: any) => toast({ title: 'Xato', description: e.response?.data?.message, variant: 'destructive' }),
   });
 
-  // ─── STUDENT VIEW ────────────────────────────────────────────────────────────
+  const gradeMutation = useMutation({
+    mutationFn: ({ submissionId, points }: { submissionId: string; points: number }) =>
+      homeworkApi.grade(submissionId, points),
+    onSuccess: (_, { submissionId }) => {
+      toast({ title: 'Ball berildi ⭐', description: `${pointsMap[submissionId]} ball` });
+      queryClient.invalidateQueries({ queryKey: ['homework', 'submissions', submissionsHW?.id] });
+      queryClient.invalidateQueries({ queryKey: ['students-rating'] });
+    },
+    onError: (e: any) => toast({ title: 'Xato', description: e.response?.data?.message, variant: 'destructive' }),
+  });
+
+  // ─── STUDENT VIEW ─────────────────────────────────────────────────────────────
   if (isStudent) {
     const pending = myHomeworks.filter(h => !h.submissions?.[0]?.isDone);
     const done    = myHomeworks.filter(h =>  h.submissions?.[0]?.isDone);
@@ -122,7 +145,10 @@ export default function HomeworkPage() {
         {myHWLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : myHomeworks.length === 0 ? (
-          <Card><CardContent className="py-12 text-center text-muted-foreground"><BookOpen className="mx-auto h-10 w-10 mb-2 opacity-20" /><p>Hozircha vazifa yo'q</p></CardContent></Card>
+          <Card><CardContent className="py-12 text-center text-muted-foreground">
+            <BookOpen className="mx-auto h-10 w-10 mb-2 opacity-20" />
+            <p>Hozircha vazifa yo'q</p>
+          </CardContent></Card>
         ) : (
           <Tabs defaultValue="pending">
             <TabsList className="grid grid-cols-2 max-w-xs">
@@ -145,10 +171,7 @@ export default function HomeworkPage() {
                           </p>
                         )}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="shrink-0 gap-1.5"
+                      <Button size="sm" variant="outline" className="shrink-0 gap-1.5"
                         disabled={submitMutation.isPending}
                         onClick={() => submitMutation.mutate(hw.id)}
                       >
@@ -161,19 +184,29 @@ export default function HomeworkPage() {
             </TabsContent>
 
             <TabsContent value="done" className="mt-4 space-y-3">
-              {done.map((hw: any) => (
-                <Card key={hw.id} className="opacity-60">
-                  <CardContent className="py-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-medium line-through">{hw.title}</p>
-                      <p className="text-xs text-muted-foreground">{hw.group?.course?.name}</p>
-                    </div>
-                    <Badge variant="outline" className="text-green-600 border-green-300 gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Bajarildi
-                    </Badge>
-                  </CardContent>
-                </Card>
-              ))}
+              {done.map((hw: any) => {
+                const sub = hw.submissions?.[0];
+                return (
+                  <Card key={hw.id} className="border-l-4 border-l-green-400">
+                    <CardContent className="py-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{hw.title}</p>
+                        <p className="text-xs text-muted-foreground">{hw.group?.course?.name}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {sub?.points != null && (
+                          <Badge className="bg-yellow-500 text-white gap-1">
+                            <Star className="w-3 h-3" /> {sub.points} ball
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-green-600 border-green-300 gap-1">
+                          <CheckCircle2 className="h-3 w-3" /> Bajarildi
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </TabsContent>
           </Tabs>
         )}
@@ -181,7 +214,7 @@ export default function HomeworkPage() {
     );
   }
 
-  // ─── TEACHER / ADMIN VIEW ─────────────────────────────────────────────────────
+  // ─── TEACHER / ADMIN VIEW ──────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -218,11 +251,11 @@ export default function HomeworkPage() {
       ) : (
         <div className="space-y-3">
           {groupHomeworks.map((hw: any) => (
-            <Card key={hw.id}>
+            <Card key={hw.id} className="hover:shadow-md transition-shadow">
               <CardContent className="py-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold">{hw.title}</p>
                       <Badge variant="outline" className="text-xs gap-1">
                         <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -235,20 +268,100 @@ export default function HomeworkPage() {
                       {hw.dueDate && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" /> Muddat: {formatDate(hw.dueDate)}</span>}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
-                    onClick={() => deleteMutation.mutate(hw.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
+                      onClick={() => { setSubmissionsHW(hw); setPointsMap({}); }}
+                    >
+                      <Users className="h-3.5 w-3.5" /> Ball berish
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => deleteMutation.mutate(hw.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {/* ─── Topshiriqlar & ball berish dialogi ─── */}
+      <Dialog open={!!submissionsHW} onOpenChange={v => !v && setSubmissionsHW(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-yellow-500" />
+              {submissionsHW?.title} — topshiriqlar
+            </DialogTitle>
+          </DialogHeader>
+
+          {submissionsLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+          ) : submissions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <CheckCircle2 className="mx-auto h-8 w-8 mb-2 opacity-20" />
+              <p>Hali hech kim topshirmagan</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {submissions.map((sub: any) => {
+                const currentPts = pointsMap[sub.id] ?? (sub.points?.toString() ?? '');
+                const alreadyGraded = sub.points != null;
+                return (
+                  <div key={sub.id} className={`flex items-center gap-3 p-3 rounded-xl border ${
+                    alreadyGraded ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200' : 'bg-muted/30'
+                  }`}>
+                    <Avatar className="w-9 h-9 shrink-0">
+                      <AvatarFallback className="text-xs font-bold bg-violet-100 text-violet-700">
+                        {getInitials(sub.student?.user?.firstName, sub.student?.user?.lastName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">
+                        {sub.student?.user?.firstName} {sub.student?.user?.lastName}
+                      </p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-green-500" />
+                        {sub.doneAt ? formatDate(sub.doneAt) : 'Bajarildi'}
+                        {alreadyGraded && (
+                          <span className="ml-1 text-yellow-600 font-medium flex items-center gap-0.5">
+                            <Star className="w-3 h-3" /> {sub.points} ball berilgan
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={100}
+                        placeholder="Ball"
+                        value={currentPts}
+                        onChange={e => setPointsMap(p => ({ ...p, [sub.id]: e.target.value }))}
+                        className="w-20 h-8 text-sm text-center"
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8 gap-1 bg-yellow-500 hover:bg-yellow-600 text-white"
+                        disabled={!currentPts || isNaN(Number(currentPts)) || gradeMutation.isPending}
+                        onClick={() => gradeMutation.mutate({ submissionId: sub.id, points: Number(currentPts) })}
+                      >
+                        <Star className="w-3 h-3" />
+                        {alreadyGraded ? 'Yangilash' : 'Berish'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Vazifa yaratish dialogi */}
       <Dialog open={openForm} onOpenChange={setOpenForm}>
@@ -283,7 +396,7 @@ export default function HomeworkPage() {
                 disabled={!selectedGroup || !title.trim() || createMutation.isPending}
                 onClick={() => createMutation.mutate()}
               >
-                {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Yuborish
               </Button>
             </div>
