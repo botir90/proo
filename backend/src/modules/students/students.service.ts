@@ -132,6 +132,21 @@ export class StudentsService {
     return { message: 'Student deleted' };
   }
 
+  async getRating() {
+    const students = await this.prisma.student.findMany({
+      where: { user: { status: 'ACTIVE' } },
+      select: {
+        id: true,
+        totalPoints: true,
+        user: { select: { firstName: true, lastName: true, avatar: true } },
+        _count: { select: { homeworkSubmissions: { where: { isDone: true } } } },
+      },
+      orderBy: { totalPoints: 'desc' },
+      take: 50,
+    });
+    return { message: 'Reyting', data: students };
+  }
+
   async updatePhoto(studentId: string, filename: string) {
     const student = await this.prisma.student.findUnique({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Student not found');

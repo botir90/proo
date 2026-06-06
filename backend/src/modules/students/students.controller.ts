@@ -25,6 +25,13 @@ export class StudentsController {
     return this.studentsService.findAll(dto);
   }
 
+  @Get('rating/leaderboard')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER, Role.TEACHER, Role.STUDENT)
+  @ApiOperation({ summary: 'O\'quvchilar reytingi' })
+  getRating() {
+    return this.studentsService.getRating();
+  }
+
   @Get(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER, Role.TEACHER)
   @ApiOperation({ summary: 'Get student by ID' })

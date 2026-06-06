@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, ParseUUIDPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { HomeworkService } from './homework.service';
@@ -43,6 +43,24 @@ export class HomeworkController {
     @Body() body: { note?: string },
   ) {
     return this.homeworkService.submitHomework(id, userId, body.note);
+  }
+
+  @Get(':id/submissions')
+  @Roles(Role.TEACHER, Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
+  @ApiOperation({ summary: 'Vazifa topshiriqlari' })
+  getSubmissions(@Param('id', ParseUUIDPipe) id: string) {
+    return this.homeworkService.getSubmissions(id);
+  }
+
+  @Patch('submissions/:id/grade')
+  @Roles(Role.TEACHER, Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
+  @ApiOperation({ summary: 'Ball berish' })
+  grade(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { points: number },
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.homeworkService.gradeSubmission(id, body.points, userId);
   }
 
   @Delete(':id')
