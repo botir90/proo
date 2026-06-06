@@ -5,17 +5,22 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class HomeworkService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: { groupId: string; title: string; description?: string; dueDate?: string }, userId: string) {
+  async create(
+    dto: { groupId: string; title: string; description?: string; dueDate?: string },
+    userId: string,
+    fileUrl?: string,
+  ) {
     const teacher = await this.prisma.teacher.findUnique({ where: { userId } });
     if (!teacher) throw new NotFoundException('Teacher profile not found');
 
     const homework = await this.prisma.homework.create({
       data: {
-        groupId: dto.groupId,
-        teacherId: teacher.id,
-        title: dto.title,
+        groupId:     dto.groupId,
+        teacherId:   teacher.id,
+        title:       dto.title,
         description: dto.description,
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        dueDate:     dto.dueDate ? new Date(dto.dueDate) : null,
+        fileUrl:     fileUrl ?? null,
       },
       include: {
         group: { select: { name: true } },
@@ -51,9 +56,12 @@ export class HomeworkService {
     const homeworks = await this.prisma.homework.findMany({
       where: { groupId: { in: groupIds } },
       include: {
-        group: { select: { name: true, course: { select: { name: true, color: true } } } },
+        group:   { select: { name: true, course: { select: { name: true, color: true } } } },
         teacher: { include: { user: { select: { firstName: true, lastName: true } } } },
-        submissions: { where: { studentId: student.id }, select: { isDone: true, doneAt: true, note: true } },
+        submissions: {
+          where: { studentId: student.id },
+          select: { isDone: true, doneAt: true, note: true, points: true, fileUrl: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -61,14 +69,17 @@ export class HomeworkService {
     return { message: 'Mening vazifalarim', data: homeworks };
   }
 
-  async submitHomework(homeworkId: string, userId: string, note?: string) {
+  async submitHomework(homeworkId: string, userId: string, note?: string, fileUrl?: string) {
     const student = await this.prisma.student.findUnique({ where: { userId } });
     if (!student) throw new NotFoundException('Student profile not found');
 
+    const data: any = { isDone: true, doneAt: new Date(), note };
+    if (fileUrl !== undefined) data.fileUrl = fileUrl;
+
     const submission = await this.prisma.homeworkSubmission.upsert({
-      where: { homeworkId_studentId: { homeworkId, studentId: student.id } },
-      update: { isDone: true, doneAt: new Date(), note },
-      create: { homeworkId, studentId: student.id, isDone: true, doneAt: new Date(), note },
+      where:  { homeworkId_studentId: { homeworkId, studentId: student.id } },
+      update: data,
+      create: { homeworkId, studentId: student.id, ...data },
     });
 
     return { message: 'Vazifa bajarildi', data: submission };
@@ -79,9 +90,7 @@ export class HomeworkService {
       where: { homeworkId },
       include: {
         student: {
-          include: {
-            user: { select: { firstName: true, lastName: true, avatar: true } },
-          },
+          include: { user: { select: { firstName: true, lastName: true, avatar: true } } },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -89,7 +98,7 @@ export class HomeworkService {
     return { message: 'Topshiriqlar', data: submissions };
   }
 
-  async gradeSubmission(submissionId: string, points: number, teacherUserId: string) {
+  async gradeSubmission(submissionId: string, points: number, _teacherUserId: string) {
     const submission = await this.prisma.homeworkSubmission.findUnique({
       where: { id: submissionId },
       include: { homework: true },
@@ -97,16 +106,16 @@ export class HomeworkService {
     if (!submission) throw new NotFoundException('Topshiriq topilmadi');
 
     const oldPoints = submission.points ?? 0;
-    const diff = points - oldPoints;
+    const diff      = points - oldPoints;
 
     const [updated] = await this.prisma.$transaction([
       this.prisma.homeworkSubmission.update({
         where: { id: submissionId },
-        data: { points, gradedAt: new Date() },
+        data:  { points, gradedAt: new Date() },
       }),
       this.prisma.student.update({
         where: { id: submission.studentId },
-        data: { totalPoints: { increment: diff } },
+        data:  { totalPoints: { increment: diff } },
       }),
     ]);
 
@@ -114,11 +123,11 @@ export class HomeworkService {
   }
 
   async delete(id: string, userId: string) {
-    const teacher = await this.prisma.teacher.findUnique({ where: { userId } });
+    const teacher  = await this.prisma.teacher.findUnique({ where: { userId } });
     const homework = await this.prisma.homework.findUnique({ where: { id } });
     if (!homework) throw new NotFoundException('Vazifa topilmadi');
-    if (homework.teacherId !== teacher?.id) throw new ForbiddenException('Ruxsat yo\'q');
+    if (homework.teacherId !== teacher?.id) throw new ForbiddenException("Ruxsat yo'q");
     await this.prisma.homework.delete({ where: { id } });
-    return { message: 'Vazifa o\'chirildi' };
+    return { message: "Vazifa o'chirildi" };
   }
 }

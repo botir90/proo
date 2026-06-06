@@ -1,9 +1,29 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, ParseUUIDPipe } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller, Get, Post, Patch, Delete,
+  Body, Param, ParseUUIDPipe,
+  UseInterceptors, UploadedFile,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { HomeworkService } from './homework.service';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+
+const hwStorage = diskStorage({
+  destination: './uploads/homework',
+  filename: (_, file, cb) => {
+    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, unique + extname(file.originalname));
+  },
+});
+
+const fileFilter = (_: any, file: Express.Multer.File, cb: any) => {
+  const allowed = /jpeg|jpg|png|gif|pdf|doc|docx|txt|zip/;
+  cb(null, allowed.test(extname(file.originalname).toLowerCase()));
+};
 
 @ApiTags('Homework')
 @ApiBearerAuth('JWT-auth')
@@ -13,12 +33,16 @@ export class HomeworkController {
 
   @Post()
   @Roles(Role.TEACHER, Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
-  @ApiOperation({ summary: 'Vazifa yaratish' })
+  @ApiOperation({ summary: 'Vazifa yaratish (fayl bilan)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { storage: hwStorage, fileFilter, limits: { fileSize: 10 * 1024 * 1024 } }))
   create(
     @Body() dto: { groupId: string; title: string; description?: string; dueDate?: string },
     @CurrentUser('id') userId: string,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.homeworkService.create(dto, userId);
+    const fileUrl = file ? `homework/${file.filename}` : undefined;
+    return this.homeworkService.create(dto, userId, fileUrl);
   }
 
   @Get('group/:groupId')
@@ -29,20 +53,24 @@ export class HomeworkController {
 
   @Get('my')
   @Roles(Role.STUDENT)
-  @ApiOperation({ summary: 'Student o\'z vazifalari' })
+  @ApiOperation({ summary: "Student o'z vazifalari" })
   findMyHomeworks(@CurrentUser('id') userId: string) {
     return this.homeworkService.findMyHomeworks(userId);
   }
 
   @Post(':id/submit')
   @Roles(Role.STUDENT)
-  @ApiOperation({ summary: 'Vazifa topshirish' })
+  @ApiOperation({ summary: 'Vazifa topshirish (fayl bilan)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { storage: hwStorage, fileFilter, limits: { fileSize: 10 * 1024 * 1024 } }))
   submit(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
     @Body() body: { note?: string },
+    @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.homeworkService.submitHomework(id, userId, body.note);
+    const fileUrl = file ? `homework/${file.filename}` : undefined;
+    return this.homeworkService.submitHomework(id, userId, body.note, fileUrl);
   }
 
   @Get(':id/submissions')
@@ -65,7 +93,7 @@ export class HomeworkController {
 
   @Delete(':id')
   @Roles(Role.TEACHER, Role.SUPER_ADMIN, Role.ADMIN)
-  @ApiOperation({ summary: 'Vazifa o\'chirish' })
+  @ApiOperation({ summary: "Vazifa o'chirish" })
   delete(@Param('id', ParseUUIDPipe) id: string, @CurrentUser('id') userId: string) {
     return this.homeworkService.delete(id, userId);
   }

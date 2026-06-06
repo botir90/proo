@@ -78,9 +78,21 @@ export const notificationsApi = {
 export const homeworkApi = {
   getByGroup: (groupId: string) => api.get(`/homework/group/${groupId}`),
   getMyHomeworks: () => api.get('/homework/my'),
-  create: (data: { groupId: string; title: string; description?: string; dueDate?: string }) =>
-    api.post('/homework', data),
-  submit: (id: string, note?: string) => api.post(`/homework/${id}/submit`, { note }),
+  create: (data: { groupId: string; title: string; description?: string; dueDate?: string }, file?: File | null) => {
+    const form = new FormData();
+    form.append('groupId', data.groupId);
+    form.append('title', data.title);
+    if (data.description) form.append('description', data.description);
+    if (data.dueDate) form.append('dueDate', data.dueDate);
+    if (file) form.append('file', file);
+    return api.post('/homework', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  submit: (id: string, note?: string, file?: File | null) => {
+    const form = new FormData();
+    if (note) form.append('note', note);
+    if (file) form.append('file', file);
+    return api.post(`/homework/${id}/submit`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
   getSubmissions: (id: string) => api.get(`/homework/${id}/submissions`),
   grade: (submissionId: string, points: number) => api.patch(`/homework/submissions/${submissionId}/grade`, { points }),
   delete: (id: string) => api.delete(`/homework/${id}`),

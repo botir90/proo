@@ -1,24 +1,72 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BookOpen, Plus, Trash2, CheckCircle2, Clock,
   Loader2, CalendarDays, Star, Users, Trophy,
+  Paperclip, Download, FileText, X, Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { homeworkApi, groupsApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth.store';
-import { formatDate, getInitials, getAvatarUrl } from '@/lib/utils';
+import { formatDate, getInitials } from '@/lib/utils';
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1').replace('/api/v1', '');
+
+function fileUrl(path: string | null | undefined) {
+  if (!path) return null;
+  return `${API_BASE}/${path}`;
+}
+
+function FileChip({ path, label }: { path: string | null | undefined; label?: string }) {
+  const url = fileUrl(path);
+  if (!url) return null;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors max-w-[180px] truncate">
+      <FileText className="w-3 h-3 shrink-0" />
+      <span className="truncate">{label || 'Fayl'}</span>
+      <Download className="w-3 h-3 shrink-0" />
+    </a>
+  );
+}
+
+function FilePicker({ value, onChange, label }: { value: File | null; onChange: (f: File | null) => void; label: string }) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div>
+      <Label className="text-xs">{label}</Label>
+      <div className="mt-1.5 flex items-center gap-2">
+        <button type="button" onClick={() => ref.current?.click()}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed text-sm transition-colors hover:bg-muted/50"
+          style={{ borderColor: value ? 'rgb(59,130,246)' : undefined }}>
+          <Paperclip className="w-4 h-4 text-muted-foreground" />
+          <span className="text-muted-foreground text-xs">
+            {value ? value.name : 'Fayl biriktirish (rasm, PDF, doc)'}
+          </span>
+        </button>
+        {value && (
+          <button type="button" onClick={() => onChange(null)} className="text-muted-foreground hover:text-destructive transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      <input ref={ref} type="file" className="hidden"
+        accept="image/*,.pdf,.doc,.docx,.txt,.zip"
+        onChange={e => onChange(e.target.files?.[0] ?? null)} />
+    </div>
+  );
+}
 
 export default function HomeworkPage() {
   const { user } = useAuthStore();
@@ -27,16 +75,23 @@ export default function HomeworkPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [openForm, setOpenForm] = useState(false);
+  // Teacher create state
+  const [openForm, setOpenForm]         = useState(false);
   const [selectedGroup, setSelectedGroup] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [viewGroup, setViewGroup] = useState('');
+  const [title, setTitle]               = useState('');
+  const [description, setDescription]   = useState('');
+  const [dueDate, setDueDate]           = useState('');
+  const [createFile, setCreateFile]     = useState<File | null>(null);
+  const [viewGroup, setViewGroup]       = useState('');
 
-  // Topshiriqlar dialogi
+  // Teacher submissions state
   const [submissionsHW, setSubmissionsHW] = useState<any>(null);
-  const [pointsMap, setPointsMap] = useState<Record<string, string>>({});
+  const [pointsMap, setPointsMap]         = useState<Record<string, string>>({});
+
+  // Student submit dialog
+  const [submitHW, setSubmitHW]   = useState<any>(null);
+  const [submitNote, setSubmitNote] = useState('');
+  const [submitFile, setSubmitFile] = useState<File | null>(null);
 
   const { data: myGroupsData } = useQuery({
     queryKey: ['groups', 'my-groups'],
@@ -62,28 +117,24 @@ export default function HomeworkPage() {
     enabled: isStudent,
   });
 
-  // Topshiriqlar (ustoz uchun)
   const { data: submissionsData, isLoading: submissionsLoading } = useQuery({
     queryKey: ['homework', 'submissions', submissionsHW?.id],
     queryFn: () => homeworkApi.getSubmissions(submissionsHW.id),
     enabled: !!submissionsHW?.id,
   });
 
-  const groups = user?.role === 'TEACHER'
-    ? (myGroupsData?.data?.data ?? [])
-    : (allGroupsData?.data?.data?.items ?? []);
-
+  const groups        = user?.role === 'TEACHER' ? (myGroupsData?.data?.data ?? []) : (allGroupsData?.data?.data?.items ?? []);
   const groupHomeworks: any[] = groupHWData?.data?.data ?? [];
   const myHomeworks: any[]    = myHWData?.data?.data ?? [];
   const submissions: any[]    = submissionsData?.data?.data ?? [];
 
   const createMutation = useMutation({
-    mutationFn: () => homeworkApi.create({ groupId: selectedGroup, title, description, dueDate: dueDate || undefined }),
+    mutationFn: () => homeworkApi.create({ groupId: selectedGroup, title, description, dueDate: dueDate || undefined }, createFile),
     onSuccess: () => {
       toast({ title: 'Vazifa yaratildi' });
       queryClient.invalidateQueries({ queryKey: ['homework', 'group', selectedGroup] });
       setOpenForm(false);
-      setTitle(''); setDescription(''); setDueDate('');
+      setTitle(''); setDescription(''); setDueDate(''); setCreateFile(null);
       if (!viewGroup) setViewGroup(selectedGroup);
     },
     onError: (e: any) => toast({ title: 'Xato', description: e.response?.data?.message, variant: 'destructive' }),
@@ -91,17 +142,15 @@ export default function HomeworkPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => homeworkApi.delete(id),
-    onSuccess: () => {
-      toast({ title: "Vazifa o'chirildi" });
-      queryClient.invalidateQueries({ queryKey: ['homework'] });
-    },
+    onSuccess: () => { toast({ title: "Vazifa o'chirildi" }); queryClient.invalidateQueries({ queryKey: ['homework'] }); },
   });
 
   const submitMutation = useMutation({
-    mutationFn: (id: string) => homeworkApi.submit(id),
+    mutationFn: () => homeworkApi.submit(submitHW.id, submitNote || undefined, submitFile),
     onSuccess: () => {
-      toast({ title: 'Vazifa bajarildi ✓' });
+      toast({ title: 'Vazifa topshirildi ✓' });
       queryClient.invalidateQueries({ queryKey: ['homework', 'my'] });
+      setSubmitHW(null); setSubmitNote(''); setSubmitFile(null);
     },
     onError: (e: any) => toast({ title: 'Xato', description: e.response?.data?.message, variant: 'destructive' }),
   });
@@ -117,16 +166,18 @@ export default function HomeworkPage() {
     onError: (e: any) => toast({ title: 'Xato', description: e.response?.data?.message, variant: 'destructive' }),
   });
 
-  // ─── STUDENT VIEW ─────────────────────────────────────────────────────────────
+  // ─── STUDENT VIEW ──────────────────────────────────────────────
   if (isStudent) {
     const pending = myHomeworks.filter(h => !h.submissions?.[0]?.isDone);
     const done    = myHomeworks.filter(h =>  h.submissions?.[0]?.isDone);
+
     return (
       <div className="space-y-6 max-w-2xl mx-auto">
         <div>
           <h1 className="text-2xl font-bold">Vazifalarim</h1>
           <p className="text-muted-foreground">O'qituvchi bergan uy vazifalari</p>
         </div>
+
         <div className="grid grid-cols-2 gap-4">
           <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
             <CardContent className="pt-4 pb-3 text-center">
@@ -161,21 +212,24 @@ export default function HomeworkPage() {
                 <Card key={hw.id} className="border-l-4" style={{ borderLeftColor: hw.group?.course?.color ?? '#6366f1' }}>
                   <CardContent className="py-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="font-semibold">{hw.title}</p>
                         <p className="text-sm text-muted-foreground">{hw.group?.name} • {hw.group?.course?.name}</p>
-                        {hw.description && <p className="text-sm mt-1">{hw.description}</p>}
+                        {hw.description && <p className="text-sm mt-1 text-muted-foreground">{hw.description}</p>}
                         {hw.dueDate && (
                           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                             <CalendarDays className="h-3 w-3" /> Muddat: {formatDate(hw.dueDate)}
                           </p>
                         )}
+                        {hw.fileUrl && (
+                          <div className="mt-2">
+                            <FileChip path={hw.fileUrl} label="O'qituvchi fayli" />
+                          </div>
+                        )}
                       </div>
                       <Button size="sm" variant="outline" className="shrink-0 gap-1.5"
-                        disabled={submitMutation.isPending}
-                        onClick={() => submitMutation.mutate(hw.id)}
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Bajardim
+                        onClick={() => { setSubmitHW(hw); setSubmitNote(''); setSubmitFile(null); }}>
+                        <Upload className="h-3.5 w-3.5" /> Topshirish
                       </Button>
                     </div>
                   </CardContent>
@@ -188,20 +242,26 @@ export default function HomeworkPage() {
                 const sub = hw.submissions?.[0];
                 return (
                   <Card key={hw.id} className="border-l-4 border-l-green-400">
-                    <CardContent className="py-4 flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">{hw.title}</p>
-                        <p className="text-xs text-muted-foreground">{hw.group?.course?.name}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {sub?.points != null && (
-                          <Badge className="bg-yellow-500 text-white gap-1">
-                            <Star className="w-3 h-3" /> {sub.points} ball
+                    <CardContent className="py-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium">{hw.title}</p>
+                          <p className="text-xs text-muted-foreground">{hw.group?.course?.name}</p>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {hw.fileUrl && <FileChip path={hw.fileUrl} label="Ustoz fayli" />}
+                            {sub?.fileUrl && <FileChip path={sub.fileUrl} label="Mening faylim" />}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          {sub?.points != null && (
+                            <Badge className="bg-yellow-500 text-white gap-1">
+                              <Star className="w-3 h-3" /> {sub.points} ball
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-green-600 border-green-300 gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Bajarildi
                           </Badge>
-                        )}
-                        <Badge variant="outline" className="text-green-600 border-green-300 gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Bajarildi
-                        </Badge>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -210,11 +270,43 @@ export default function HomeworkPage() {
             </TabsContent>
           </Tabs>
         )}
+
+        {/* Student submit dialog */}
+        <Dialog open={!!submitHW} onOpenChange={v => !v && setSubmitHW(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="w-5 h-5 text-primary" />
+                Vazifani topshirish
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <p className="text-sm font-medium text-muted-foreground">{submitHW?.title}</p>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Izoh (ixtiyoriy)</Label>
+                <Input placeholder="Qo'shimcha izoh..." value={submitNote}
+                  onChange={e => setSubmitNote(e.target.value)} />
+              </div>
+
+              <FilePicker value={submitFile} onChange={setSubmitFile} label="Fayl biriktirish (ixtiyoriy)" />
+
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setSubmitHW(null)}>Bekor</Button>
+                <Button className="flex-1 gap-1.5" disabled={submitMutation.isPending}
+                  onClick={() => submitMutation.mutate()}>
+                  {submitMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Topshirish
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
 
-  // ─── TEACHER / ADMIN VIEW ──────────────────────────────────────────────────────
+  // ─── TEACHER / ADMIN VIEW ──────────────────────────────────────
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -227,14 +319,11 @@ export default function HomeworkPage() {
         </Button>
       </div>
 
-      {/* Guruh tanlash */}
       <div className="max-w-xs">
         <Select value={viewGroup} onValueChange={setViewGroup}>
           <SelectTrigger><SelectValue placeholder="Guruhni tanlang" /></SelectTrigger>
           <SelectContent>
-            {groups.map((g: any) => (
-              <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-            ))}
+            {groups.map((g: any) => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -263,23 +352,23 @@ export default function HomeworkPage() {
                       </Badge>
                     </div>
                     {hw.description && <p className="text-sm text-muted-foreground mt-1">{hw.description}</p>}
-                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {formatDate(hw.createdAt)}</span>
                       {hw.dueDate && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" /> Muddat: {formatDate(hw.dueDate)}</span>}
                     </div>
+                    {hw.fileUrl && (
+                      <div className="mt-2">
+                        <FileChip path={hw.fileUrl} label="Biriktirilgan fayl" />
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
-                      onClick={() => { setSubmissionsHW(hw); setPointsMap({}); }}
-                    >
+                    <Button variant="outline" size="sm" className="gap-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
+                      onClick={() => { setSubmissionsHW(hw); setPointsMap({}); }}>
                       <Users className="h-3.5 w-3.5" /> Ball berish
                     </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => deleteMutation.mutate(hw.id)}
-                    >
+                      onClick={() => deleteMutation.mutate(hw.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -290,7 +379,7 @@ export default function HomeworkPage() {
         </div>
       )}
 
-      {/* ─── Topshiriqlar & ball berish dialogi ─── */}
+      {/* Submissions & grading dialog */}
       <Dialog open={!!submissionsHW} onOpenChange={v => !v && setSubmissionsHW(null)}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -310,51 +399,51 @@ export default function HomeworkPage() {
           ) : (
             <div className="space-y-3">
               {submissions.map((sub: any) => {
-                const currentPts = pointsMap[sub.id] ?? (sub.points?.toString() ?? '');
+                const currentPts   = pointsMap[sub.id] ?? (sub.points?.toString() ?? '');
                 const alreadyGraded = sub.points != null;
                 return (
-                  <div key={sub.id} className={`flex items-center gap-3 p-3 rounded-xl border ${
-                    alreadyGraded ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200' : 'bg-muted/30'
-                  }`}>
-                    <Avatar className="w-9 h-9 shrink-0">
-                      <AvatarFallback className="text-xs font-bold bg-violet-100 text-violet-700">
-                        {getInitials(sub.student?.user?.firstName, sub.student?.user?.lastName)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">
-                        {sub.student?.user?.firstName} {sub.student?.user?.lastName}
-                      </p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-green-500" />
-                        {sub.doneAt ? formatDate(sub.doneAt) : 'Bajarildi'}
-                        {alreadyGraded && (
-                          <span className="ml-1 text-yellow-600 font-medium flex items-center gap-0.5">
-                            <Star className="w-3 h-3" /> {sub.points} ball berilgan
-                          </span>
-                        )}
-                      </p>
+                  <div key={sub.id} className={`rounded-xl border p-3 ${alreadyGraded ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200' : 'bg-muted/30'}`}>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="w-9 h-9 shrink-0">
+                        <AvatarFallback className="text-xs font-bold bg-violet-100 text-violet-700">
+                          {getInitials(sub.student?.user?.firstName, sub.student?.user?.lastName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate">
+                          {sub.student?.user?.firstName} {sub.student?.user?.lastName}
+                        </p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-green-500" />
+                          {sub.doneAt ? formatDate(sub.doneAt) : 'Bajarildi'}
+                          {alreadyGraded && (
+                            <span className="ml-1 text-yellow-600 font-medium flex items-center gap-0.5">
+                              <Star className="w-3 h-3" /> {sub.points} ball
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Input type="number" min={1} max={100} placeholder="Ball" value={currentPts}
+                          onChange={e => setPointsMap(p => ({ ...p, [sub.id]: e.target.value }))}
+                          className="w-20 h-8 text-sm text-center" />
+                        <Button size="sm" className="h-8 gap-1 bg-yellow-500 hover:bg-yellow-600 text-white"
+                          disabled={!currentPts || isNaN(Number(currentPts)) || gradeMutation.isPending}
+                          onClick={() => gradeMutation.mutate({ submissionId: sub.id, points: Number(currentPts) })}>
+                          <Star className="w-3 h-3" />
+                          {alreadyGraded ? 'Yangilash' : 'Berish'}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={100}
-                        placeholder="Ball"
-                        value={currentPts}
-                        onChange={e => setPointsMap(p => ({ ...p, [sub.id]: e.target.value }))}
-                        className="w-20 h-8 text-sm text-center"
-                      />
-                      <Button
-                        size="sm"
-                        className="h-8 gap-1 bg-yellow-500 hover:bg-yellow-600 text-white"
-                        disabled={!currentPts || isNaN(Number(currentPts)) || gradeMutation.isPending}
-                        onClick={() => gradeMutation.mutate({ submissionId: sub.id, points: Number(currentPts) })}
-                      >
-                        <Star className="w-3 h-3" />
-                        {alreadyGraded ? 'Yangilash' : 'Berish'}
-                      </Button>
-                    </div>
+                    {/* Student's submitted file */}
+                    {sub.fileUrl && (
+                      <div className="mt-2 pl-12">
+                        <FileChip path={sub.fileUrl} label="O'quvchi fayli" />
+                      </div>
+                    )}
+                    {sub.note && (
+                      <p className="text-xs text-muted-foreground mt-1.5 pl-12 italic">"{sub.note}"</p>
+                    )}
                   </div>
                 );
               })}
@@ -363,7 +452,7 @@ export default function HomeworkPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Vazifa yaratish dialogi */}
+      {/* Create homework dialog */}
       <Dialog open={openForm} onOpenChange={setOpenForm}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Yangi vazifa berish</DialogTitle></DialogHeader>
@@ -389,13 +478,11 @@ export default function HomeworkPage() {
               <Label>Muddat (ixtiyoriy)</Label>
               <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
             </div>
+            <FilePicker value={createFile} onChange={setCreateFile} label="Fayl biriktirish (ixtiyoriy)" />
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setOpenForm(false)}>Bekor</Button>
-              <Button
-                className="flex-1"
-                disabled={!selectedGroup || !title.trim() || createMutation.isPending}
-                onClick={() => createMutation.mutate()}
-              >
+              <Button className="flex-1" disabled={!selectedGroup || !title.trim() || createMutation.isPending}
+                onClick={() => createMutation.mutate()}>
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Yuborish
               </Button>

@@ -10,7 +10,7 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 
-RUN mkdir -p uploads/avatars uploads/students
+RUN mkdir -p uploads/avatars uploads/students uploads/homework
 
 EXPOSE 3001
 

@@ -270,6 +270,7 @@ model Homework {
   title       String
   description String?
   dueDate     DateTime?
+  fileUrl     String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -285,6 +286,7 @@ model HomeworkSubmission {
   homeworkId String
   studentId  String
   note       String?
+  fileUrl    String?
   isDone     Boolean  @default(false)
   doneAt     DateTime?
   points     Int?
