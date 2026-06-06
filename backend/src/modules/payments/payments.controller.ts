@@ -13,8 +13,8 @@ export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}
 
   @Get('my-payments')
-  @Roles(Role.STUDENT)
-  @ApiOperation({ summary: 'Student o\'z to\'lovlarini ko\'rish' })
+  @Roles(Role.STUDENT, Role.PARENT)
+  @ApiOperation({ summary: 'Student/Ota-ona o\'z to\'lovlarini ko\'rish' })
   getMyPayments(@CurrentUser('id') userId: string) {
     return this.paymentsService.getMyPayments(userId);
   }

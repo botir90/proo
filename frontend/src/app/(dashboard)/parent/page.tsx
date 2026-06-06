@@ -1,11 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import {
-  CheckCircle2, XCircle, Clock, AlertCircle,
-  CreditCard, ClipboardCheck, BookOpen, GraduationCap,
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CreditCard, BookOpen, GraduationCap } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -27,15 +24,6 @@ function useParentFetch<T>(path: string) {
   });
 }
 
-const attIcon: Record<string, any> = {
-  PRESENT: CheckCircle2, ABSENT: XCircle, LATE: Clock, EXCUSED: AlertCircle,
-};
-const attColor: Record<string, string> = {
-  PRESENT: 'text-green-600', ABSENT: 'text-red-500', LATE: 'text-yellow-500', EXCUSED: 'text-blue-500',
-};
-const attLabel: Record<string, string> = {
-  PRESENT: 'Keldi', ABSENT: 'Kelmadi', LATE: 'Kechikdi', EXCUSED: 'Sababli',
-};
 const payColor: Record<string, string> = {
   PAID: 'text-green-600', PENDING: 'text-yellow-600', PARTIAL: 'text-blue-600', OVERDUE: 'text-red-600',
 };
@@ -48,8 +36,10 @@ export default function ParentDashboardPage() {
   const { data: myHW } = useParentFetch<any>('/homework/my');
   const { data: myPayments } = useParentFetch<any>('/payments/my-payments');
 
-  const homeworks: any[] = myHW?.data ?? [];
-  const payInfo = myPayments?.data ?? { payments: [], totalDebt: 0, totalPaid: 0 };
+  const homeworks: any[] = Array.isArray(myHW) ? myHW : [];
+  const payInfo = (myPayments && typeof myPayments === 'object' && 'payments' in myPayments)
+    ? myPayments as any
+    : { payments: [], totalDebt: 0, totalPaid: 0 };
   const payments: any[] = payInfo.payments ?? [];
 
   const pendingHW = homeworks.filter(h => !h.submissions?.[0]?.isDone).length;

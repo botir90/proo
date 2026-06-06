@@ -52,8 +52,8 @@ export class HomeworkController {
   }
 
   @Get('my')
-  @Roles(Role.STUDENT)
-  @ApiOperation({ summary: "Student o'z vazifalari" })
+  @Roles(Role.STUDENT, Role.PARENT)
+  @ApiOperation({ summary: "Student o'z vazifalari (ota-ona ham ko'rishi mumkin)" })
   findMyHomeworks(@CurrentUser('id') userId: string) {
     return this.homeworkService.findMyHomeworks(userId);
   }

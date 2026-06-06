@@ -319,15 +319,22 @@ function StudentDashboard() {
 function TeacherDashboard() {
   const { user } = useAuthStore();
 
-  const { data: groupsData } = useQuery({
-    queryKey: ['my-groups'],
-    queryFn: () => import('@/lib/api').then(m => m.groupsApi.getAll({ limit: 50 })),
+  const { data: groupsData, isLoading } = useQuery({
+    queryKey: ['teacher-my-groups'],
+    queryFn: () => import('@/lib/api').then(m => m.groupsApi.getMyGroups()),
   });
 
-  const groups = (groupsData?.data?.data?.items || []).filter(
-    (g: any) => g.teacher?.user?.id === user?.id
-  );
-  const activeGroups = groups.filter((g: any) => g.status === 'ACTIVE');
+  const groups: any[]      = groupsData?.data?.data || [];
+  const activeGroups       = groups.filter((g: any) => g.status === 'ACTIVE');
+  const totalStudents      = groups.reduce((s: number, g: any) => s + (g._count?.members || 0), 0);
+  const uniqueCourses      = new Set(groups.map((g: any) => g.courseId)).size;
+
+  const statCards = [
+    { label: 'Jami guruhlar',    value: groups.length,   color: 'text-violet-600' },
+    { label: 'Faol guruhlar',    value: activeGroups.length, color: 'text-green-600' },
+    { label: 'Jami kurslar',     value: uniqueCourses,   color: 'text-blue-600' },
+    { label: "Jami o'quvchilar", value: totalStudents,   color: 'text-orange-600' },
+  ];
 
   return (
     <div className="space-y-6">
@@ -336,45 +343,48 @@ function TeacherDashboard() {
         <p className="text-muted-foreground">Xush kelibsiz, {user?.firstName} o'qituvchi!</p>
       </div>
 
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-5 pb-4">
-            <p className="text-xs text-muted-foreground mb-1">Jami guruhlar</p>
-            <p className="text-2xl font-bold">{groups.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-5 pb-4">
-            <p className="text-xs text-muted-foreground mb-1">Faol guruhlar</p>
-            <p className="text-2xl font-bold text-green-600">{activeGroups.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-5 pb-4">
-            <p className="text-xs text-muted-foreground mb-1">Jami o'quvchilar</p>
-            <p className="text-2xl font-bold">{groups.reduce((s: number, g: any) => s + (g._count?.members || 0), 0)}</p>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
+        {statCards.map(c => (
+          <Card key={c.label}>
+            <CardContent className="pt-5 pb-4">
+              <p className="text-xs text-muted-foreground mb-1">{c.label}</p>
+              {isLoading
+                ? <Skeleton className="h-8 w-16 mt-1" />
+                : <p className={`text-2xl font-bold ${c.color}`}>{c.value}</p>}
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Mening guruhlarim</CardTitle>
+          <CardDescription>{groups.length} ta guruh</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {activeGroups.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">Faol guruhlar yo'q</p>
+          {isLoading ? (
+            <div className="space-y-2">
+              {[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
+            </div>
+          ) : groups.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">Guruhlar yo'q</p>
           ) : (
-            activeGroups.map((group: any) => (
-              <div key={group.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50">
+            groups.map((group: any) => (
+              <div key={group.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: group.course?.color || '#6366f1' }} />
+                  <div className="w-3 h-3 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: group.course?.color || '#6366f1' }} />
                   <div>
                     <p className="font-medium text-sm">{group.name}</p>
                     <p className="text-xs text-muted-foreground">{group.course?.name} · {group.schedule}</p>
                   </div>
                 </div>
-                <Badge variant="secondary">{group._count?.members || 0} o'quvchi</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={group.status === 'ACTIVE' ? 'default' : 'secondary'} className="text-xs">
+                    {group.status === 'ACTIVE' ? 'Faol' : 'Nofaol'}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">{group._count?.members || 0} o'quvchi</Badge>
+                </div>
               </div>
             ))
           )}
