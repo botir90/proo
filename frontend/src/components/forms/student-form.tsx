@@ -15,24 +15,41 @@ import { useToast } from '@/hooks/use-toast';
 import { studentsApi } from '@/lib/api';
 import { Student } from '@/types';
 
-const schema = z.object({
-  firstName: z.string().min(2),
-  lastName: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(8).optional().or(z.literal('')),
-  phone: z.string().optional(),
+const passwordRule = z
+  .string()
+  .min(8, 'Kamida 8 ta belgi')
+  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, "Katta harf, kichik harf va raqam bo'lishi kerak");
+
+const baseSchema = z.object({
+  firstName:   z.string().min(2, 'Kamida 2 ta belgi'),
+  lastName:    z.string().min(2, 'Kamida 2 ta belgi'),
+  email:       z.string().email("Email noto'g'ri"),
+  phone:       z.string().optional(),
   parentPhone: z.string().optional(),
-  address: z.string().optional(),
-  birthDate: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE']).optional(),
-  notes: z.string().optional(),
+  address:     z.string().optional(),
+  birthDate:   z.string().optional(),
+  gender:      z.enum(['MALE', 'FEMALE']).optional(),
+  notes:       z.string().optional(),
 });
 
-type FormData = z.infer<typeof schema>;
+const createSchema = baseSchema.extend({ password: passwordRule });
+const editSchema   = baseSchema;
+
+type CreateData = z.infer<typeof createSchema>;
+type EditData   = z.infer<typeof editSchema>;
+type FormData   = CreateData;
 
 interface Props {
   student: Student | null;
   onSuccess: () => void;
+}
+
+function stripEmpty(obj: Record<string, any>) {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== '' && v !== null && v !== undefined) out[k] = v;
+  }
+  return out;
 }
 
 export function StudentForm({ student, onSuccess }: Props) {
@@ -40,34 +57,43 @@ export function StudentForm({ student, onSuccess }: Props) {
   const isEdit = !!student;
 
   const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(isEdit ? schema.omit({ password: true }) : schema),
+    resolver: zodResolver(isEdit ? editSchema : createSchema),
+    defaultValues: { gender: undefined },
   });
 
   useEffect(() => {
     if (student) {
       reset({
-        firstName: student.user?.firstName || '',
-        lastName: student.user?.lastName || '',
-        email: student.user?.email || '',
-        phone: student.user?.phone || '',
-        parentPhone: student.parentPhone || '',
-        address: student.address || '',
-        birthDate: student.birthDate ? student.birthDate.split('T')[0] : '',
-        gender: student.gender,
-        notes: student.notes || '',
+        firstName:   student.user?.firstName || '',
+        lastName:    student.user?.lastName  || '',
+        email:       student.user?.email     || '',
+        phone:       student.user?.phone     || '',
+        parentPhone: student.parentPhone     || '',
+        address:     student.address         || '',
+        birthDate:   student.birthDate ? student.birthDate.split('T')[0] : '',
+        gender:      student.gender,
+        notes:       student.notes           || '',
       });
+    } else {
+      reset({ gender: undefined });
     }
   }, [student, reset]);
 
   const mutation = useMutation({
-    mutationFn: (data: FormData) =>
-      isEdit ? studentsApi.update(student!.id, data) : studentsApi.create(data),
+    mutationFn: (data: FormData) => {
+      const payload = stripEmpty(data as Record<string, any>);
+      return isEdit
+        ? studentsApi.update(student!.id, payload)
+        : studentsApi.create(payload);
+    },
     onSuccess: () => {
       toast({ title: isEdit ? "O'quvchi yangilandi" : "O'quvchi qo'shildi" });
       onSuccess();
     },
     onError: (error: any) => {
-      toast({ title: 'Xato', description: error.response?.data?.message, variant: 'destructive' });
+      const msg = error.response?.data?.message;
+      const text = Array.isArray(msg) ? msg.join(', ') : (msg || 'Noma\'lum xato');
+      toast({ title: 'Xato', description: text, variant: 'destructive' });
     },
   });
 
@@ -96,9 +122,11 @@ export function StudentForm({ student, onSuccess }: Props) {
         </div>
         {!isEdit && (
           <div className="space-y-1.5">
-            <Label>Parol *</Label>
-            <Input {...register('password')} type="password" placeholder="Min 8 ta belgi" />
-            {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+            <Label>Parol * <span className="text-xs text-muted-foreground">(Katta/kichik harf + raqam)</span></Label>
+            <Input {...register('password')} type="password" placeholder="Masalan: Bobur123" />
+            {'password' in errors && errors.password && (
+              <p className="text-xs text-destructive">{(errors as any).password.message}</p>
+            )}
           </div>
         )}
       </div>
@@ -121,7 +149,10 @@ export function StudentForm({ student, onSuccess }: Props) {
         </div>
         <div className="space-y-1.5">
           <Label>Jinsi</Label>
-          <Select value={gender} onValueChange={(v) => setValue('gender', v as 'MALE' | 'FEMALE')}>
+          <Select
+            value={gender ?? ''}
+            onValueChange={(v) => setValue('gender', v as 'MALE' | 'FEMALE', { shouldValidate: true })}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Tanlang" />
             </SelectTrigger>
