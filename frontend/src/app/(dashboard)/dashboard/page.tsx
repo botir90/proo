@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { dashboardApi, paymentsApi, attendanceApi } from '@/lib/api';
+import { dashboardApi, paymentsApi, attendanceApi, groupsApi } from '@/lib/api';
 import { formatCurrency, getInitials, getAvatarUrl, getMonthName } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/stores/auth.store';
@@ -321,7 +321,7 @@ function TeacherDashboard() {
 
   const { data: groupsData, isLoading } = useQuery({
     queryKey: ['teacher-my-groups'],
-    queryFn: () => import('@/lib/api').then(m => m.groupsApi.getMyGroups()),
+    queryFn: () => groupsApi.getMyGroups(),
   });
 
   const groups: any[]      = groupsData?.data?.data || [];
