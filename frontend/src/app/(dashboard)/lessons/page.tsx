@@ -4,22 +4,23 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Video, Plus, Clock, CalendarDays, BookOpen, CheckCircle2, XCircle,
-  ChevronRight, Users2, Pencil, Trash2, X, Check,
+  ChevronRight, Users2, Pencil, Trash2, Check,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/auth.store';
 import { lessonsApi, groupsApi } from '@/lib/api';
 import { format, isToday, isFuture, isPast, parseISO } from 'date-fns';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function fmtDate(d: string) {
-  try { return format(parseISO(d), 'dd.MM.yyyy HH:mm'); } catch { return d; }
-}
 function fmtDay(d: string) {
   try { return format(parseISO(d), 'dd.MM.yyyy'); } catch { return d; }
 }
@@ -28,9 +29,9 @@ function fmtTime(d: string) {
 }
 
 const STATUS_META: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: any }> = {
-  PLANNED:   { label: "Rejalashtirilgan", variant: 'secondary',    icon: CalendarDays },
-  COMPLETED: { label: "O'tilgan",         variant: 'default',      icon: CheckCircle2 },
-  CANCELLED: { label: 'Bekor qilingan',   variant: 'destructive',  icon: XCircle },
+  PLANNED:   { label: 'Rejalashtirilgan', variant: 'secondary',   icon: CalendarDays },
+  COMPLETED: { label: "O'tilgan",         variant: 'default',     icon: CheckCircle2 },
+  CANCELLED: { label: 'Bekor qilingan',   variant: 'destructive', icon: XCircle },
 };
 
 // ── Lesson Card ───────────────────────────────────────────────────────────────
@@ -47,7 +48,6 @@ function LessonCard({
   const meta = STATUS_META[lesson.status] ?? STATUS_META.PLANNED;
   const StatusIcon = meta.icon;
   const todayLesson = isToday(parseISO(lesson.lessonDate));
-  const upcoming = isFuture(parseISO(lesson.lessonDate));
 
   return (
     <div className={`rounded-xl border p-4 transition-all ${todayLesson ? 'border-primary bg-primary/5 shadow-md' : 'bg-card hover:shadow-sm'}`}>
@@ -95,7 +95,8 @@ function LessonCard({
       {isTeacher && (
         <div className="mt-3 flex items-center gap-2 pt-2 border-t">
           {lesson.status === 'PLANNED' && (
-            <Button size="sm" variant="outline" className="h-7 text-xs gap-1 text-green-600 border-green-200 hover:bg-green-50"
+            <Button size="sm" variant="outline"
+              className="h-7 text-xs gap-1 text-green-600 border-green-200 hover:bg-green-50"
               onClick={() => onMarkDone?.(lesson.id)}>
               <Check className="h-3 w-3" />O'tkazildi
             </Button>
@@ -104,7 +105,8 @@ function LessonCard({
             onClick={() => onEdit?.(lesson)}>
             <Pencil className="h-3 w-3" />Tahrirlash
           </Button>
-          <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+          <Button size="sm" variant="ghost"
+            className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
             onClick={() => onDelete?.(lesson.id)}>
             <Trash2 className="h-3 w-3" />
           </Button>
@@ -114,130 +116,129 @@ function LessonCard({
   );
 }
 
-// ── Create / Edit Dialog ──────────────────────────────────────────────────────
+// ── Lesson Form Dialog ────────────────────────────────────────────────────────
 
-function LessonForm({
-  groups, onClose, onSave, initial,
+function LessonFormDialog({
+  open, onOpenChange, groups, onSave, initial,
 }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
   groups: any[];
-  onClose: () => void;
   onSave: (data: any) => void;
   initial?: any;
 }) {
-  const [form, setForm] = useState({
-    groupId:     initial?.groupId     ?? '',
-    title:       initial?.title       ?? '',
-    description: initial?.description ?? '',
-    lessonDate:  initial?.lessonDate  ? initial.lessonDate.slice(0, 16) : '',
-    duration:    initial?.duration    ?? 60,
-    topic:       initial?.topic       ?? '',
-  });
+  const [groupId,     setGroupId]     = useState(initial?.groupId     ?? '');
+  const [title,       setTitle]       = useState(initial?.title       ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [lessonDate,  setLessonDate]  = useState(
+    initial?.lessonDate ? initial.lessonDate.slice(0, 16) : '',
+  );
+  const [duration,    setDuration]    = useState<number>(initial?.duration ?? 60);
+  const [topic,       setTopic]       = useState(initial?.topic ?? '');
 
-  const set = (k: string, v: any) => setForm(p => ({ ...p, [k]: v }));
+  const canSave = groupId && title && lessonDate;
+
+  function handleSave() {
+    const payload: any = {
+      groupId,
+      title,
+      lessonDate: new Date(lessonDate).toISOString(),
+      duration,
+    };
+    if (topic)       payload.topic       = topic;
+    if (description) payload.description = description;
+    onSave(payload);
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-background shadow-2xl">
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b">
-          <h2 className="font-bold text-lg">{initial ? 'Darsni tahrirlash' : 'Yangi dars qo\'shish'}</h2>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="px-6 py-4 space-y-4">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{initial ? 'Darsni tahrirlash' : "Yangi dars qo'shish"}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-2">
           {/* Group */}
-          <div>
-            <label className="text-xs font-medium mb-1.5 block text-muted-foreground">Guruh *</label>
+          <div className="space-y-1.5">
+            <Label>Guruh *</Label>
             <select
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-              value={form.groupId}
-              onChange={e => set('groupId', e.target.value)}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              value={groupId}
+              onChange={e => setGroupId(e.target.value)}
             >
               <option value="">Guruhni tanlang</option>
               {groups.map((g: any) => (
                 <option key={g.id} value={g.id}>
-                  {g.name} — {g.course?.name}
+                  {g.name}{g.course?.name ? ` — ${g.course.name}` : ''}
                 </option>
               ))}
             </select>
           </div>
 
           {/* Title */}
-          <div>
-            <label className="text-xs font-medium mb-1.5 block text-muted-foreground">Dars nomi *</label>
+          <div className="space-y-1.5">
+            <Label>Dars nomi *</Label>
             <Input
               placeholder="Masalan: Present Simple kirish darsi"
-              value={form.title}
-              onChange={e => set('title', e.target.value)}
+              value={title}
+              onChange={e => setTitle(e.target.value)}
             />
           </div>
 
           {/* Date + Duration */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium mb-1.5 block text-muted-foreground">Sana va vaqt *</label>
+            <div className="space-y-1.5">
+              <Label>Sana va vaqt *</Label>
               <Input
                 type="datetime-local"
-                value={form.lessonDate}
-                onChange={e => set('lessonDate', e.target.value)}
+                value={lessonDate}
+                onChange={e => setLessonDate(e.target.value)}
               />
             </div>
-            <div>
-              <label className="text-xs font-medium mb-1.5 block text-muted-foreground">Davomiyligi (daqiqa)</label>
+            <div className="space-y-1.5">
+              <Label>Davomiyligi (daqiqa)</Label>
               <Input
                 type="number"
                 min={15}
                 max={240}
-                value={form.duration}
-                onChange={e => set('duration', Number(e.target.value))}
+                value={duration}
+                onChange={e => setDuration(Number(e.target.value))}
               />
             </div>
           </div>
 
           {/* Topic */}
-          <div>
-            <label className="text-xs font-medium mb-1.5 block text-muted-foreground">Dars mavzusi</label>
+          <div className="space-y-1.5">
+            <Label>Dars mavzusi</Label>
             <Input
               placeholder="Masalan: Present Simple — ta'rif va ishlatilishi"
-              value={form.topic}
-              onChange={e => set('topic', e.target.value)}
+              value={topic}
+              onChange={e => setTopic(e.target.value)}
             />
           </div>
 
           {/* Description */}
-          <div>
-            <label className="text-xs font-medium mb-1.5 block text-muted-foreground">Izoh</label>
+          <div className="space-y-1.5">
+            <Label>Izoh</Label>
             <Textarea
               rows={2}
               placeholder="Qo'shimcha ma'lumot..."
-              value={form.description}
-              onChange={e => set('description', e.target.value)}
+              value={description}
+              onChange={e => setDescription(e.target.value)}
             />
           </div>
-        </div>
 
-        <div className="flex gap-3 px-6 pb-5">
-          <Button variant="outline" className="flex-1" onClick={onClose}>Bekor qilish</Button>
-          <Button
-            className="flex-1"
-            disabled={!form.groupId || !form.title || !form.lessonDate}
-            onClick={() => {
-              const payload: any = {
-                groupId:    form.groupId,
-                title:      form.title,
-                lessonDate: new Date(form.lessonDate).toISOString(),
-                duration:   form.duration,
-              };
-              if (form.topic)       payload.topic       = form.topic;
-              if (form.description) payload.description = form.description;
-              onSave(payload);
-            }}
-          >
-            {initial ? 'Saqlash' : "Qo'shish"}
-          </Button>
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+              Bekor qilish
+            </Button>
+            <Button className="flex-1" disabled={!canSave} onClick={handleSave}>
+              {initial ? 'Saqlash' : "Qo'shish"}
+            </Button>
+          </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -248,29 +249,28 @@ type Tab = 'today' | 'upcoming' | 'past' | 'all';
 export default function LessonsPage() {
   const { user } = useAuthStore();
   const qc = useQueryClient();
-  const isTeacher  = user?.role === 'TEACHER';
-  const isStudent  = user?.role === 'STUDENT' || user?.role === 'PARENT';
-  const isAdmin    = !isTeacher && !isStudent;
+  const isTeacher = user?.role === 'TEACHER';
+  const isStudent = user?.role === 'STUDENT' || user?.role === 'PARENT';
 
-  const [tab, setTab]       = useState<Tab>('today');
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing]  = useState<any>(null);
+  const [tab, setTab]             = useState<Tab>('today');
+  const [showForm, setShowForm]   = useState(false);
+  const [editing, setEditing]     = useState<any>(null);
 
   // ── data ──
   const { data: teacherLessons, isLoading: teacherLoading } = useQuery({
     queryKey: ['lessons', 'my'],
-    queryFn: () => lessonsApi.getMyLessons(),
-    enabled: isTeacher || isAdmin,
+    queryFn:  () => lessonsApi.getMyLessons(),
+    enabled:  isTeacher,
   });
   const { data: studentLessons, isLoading: studentLoading } = useQuery({
     queryKey: ['lessons', 'student'],
-    queryFn: () => lessonsApi.getStudentLessons(),
-    enabled: isStudent,
+    queryFn:  () => lessonsApi.getStudentLessons(),
+    enabled:  isStudent,
   });
   const { data: myGroupsData } = useQuery({
-    queryKey: ['my-groups'],
-    queryFn: () => groupsApi.getMyGroups(),
-    enabled: isTeacher,
+    queryKey: ['groups', 'teacher-list'],
+    queryFn:  () => groupsApi.getMyGroups(),
+    enabled:  isTeacher,
   });
 
   const isLoading = teacherLoading || studentLoading;
@@ -281,40 +281,42 @@ export default function LessonsPage() {
 
   const myGroups: any[] = myGroupsData?.data?.data ?? [];
 
-  // ── filter by tab ──
-  const now = new Date();
+  // ── tabs ──
   const todayLessons    = rawLessons.filter(l => isToday(parseISO(l.lessonDate)));
   const upcomingLessons = rawLessons.filter(l => isFuture(parseISO(l.lessonDate)) && !isToday(parseISO(l.lessonDate)));
-  const pastLessons     = rawLessons.filter(l => isPast(parseISO(l.lessonDate)) && !isToday(parseISO(l.lessonDate)));
+  const pastLessons     = rawLessons.filter(l => isPast(parseISO(l.lessonDate))  && !isToday(parseISO(l.lessonDate)));
 
-  const displayLessons = tab === 'today'    ? todayLessons
-    : tab === 'upcoming' ? upcomingLessons
-    : tab === 'past'     ? pastLessons
-    : rawLessons;
+  const displayLessons =
+    tab === 'today'    ? todayLessons    :
+    tab === 'upcoming' ? upcomingLessons :
+    tab === 'past'     ? pastLessons     :
+    rawLessons;
 
   // ── mutations ──
   const createMutation = useMutation({
     mutationFn: (data: any) => lessonsApi.create(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lessons'] }); setShowForm(false); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['lessons'] }); setShowForm(false); },
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => lessonsApi.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['lessons'] }); setEditing(null); },
+    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['lessons'] }); setEditing(null); },
   });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => lessonsApi.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['lessons'] }),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['lessons'] }),
   });
 
   const TABS: { key: Tab; label: string; count: number }[] = [
-    { key: 'today',    label: 'Bugun',      count: todayLessons.length },
+    { key: 'today',    label: 'Bugun',      count: todayLessons.length    },
     { key: 'upcoming', label: 'Kelayotgan', count: upcomingLessons.length },
-    { key: 'past',     label: "O'tgan",     count: pastLessons.length },
-    { key: 'all',      label: 'Barchasi',   count: rawLessons.length },
+    { key: 'past',     label: "O'tgan",     count: pastLessons.length     },
+    { key: 'all',      label: 'Barchasi',   count: rawLessons.length      },
   ];
 
   // next lesson for student
-  const nextLesson = isStudent ? rawLessons.find(l => !isPast(parseISO(l.lessonDate)) || isToday(parseISO(l.lessonDate))) : null;
+  const nextLesson = isStudent
+    ? rawLessons.find(l => !isPast(parseISO(l.lessonDate)) || isToday(parseISO(l.lessonDate)))
+    : null;
 
   return (
     <div className="space-y-6">
@@ -326,7 +328,7 @@ export default function LessonsPage() {
             Darslar
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            {isTeacher ? "O'qituvchi dars rejasi" : isStudent ? "Mening darslarim" : "Barcha darslar"}
+            {isTeacher ? "O'qituvchi dars rejasi" : isStudent ? 'Mening darslarim' : 'Barcha darslar'}
           </p>
         </div>
         {isTeacher && (
@@ -337,7 +339,7 @@ export default function LessonsPage() {
         )}
       </div>
 
-      {/* Student: Next lesson highlight */}
+      {/* Student: next lesson highlight */}
       {isStudent && nextLesson && (
         <Card className="border-primary bg-gradient-to-r from-primary/10 to-primary/5">
           <CardHeader className="pb-2">
@@ -374,13 +376,13 @@ export default function LessonsPage() {
         </Card>
       )}
 
-      {/* Stats row for teacher */}
+      {/* Teacher stats */}
       {isTeacher && (
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Jami darslar',        value: rawLessons.length,     color: 'text-primary' },
-            { label: "O'tkazilgan",          value: rawLessons.filter(l => l.status === 'COMPLETED').length, color: 'text-green-600' },
-            { label: 'Rejalashtirilgan',     value: rawLessons.filter(l => l.status === 'PLANNED').length, color: 'text-blue-600' },
+            { label: 'Jami darslar',      value: rawLessons.length,                                          color: 'text-primary'    },
+            { label: "O'tkazilgan",        value: rawLessons.filter(l => l.status === 'COMPLETED').length,    color: 'text-green-600'  },
+            { label: 'Rejalashtirilgan',   value: rawLessons.filter(l => l.status === 'PLANNED').length,      color: 'text-blue-600'   },
           ].map(s => (
             <Card key={s.label} className="text-center py-3">
               <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -417,9 +419,7 @@ export default function LessonsPage() {
       {/* Lessons list */}
       {isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-40 rounded-xl bg-muted animate-pulse" />
-          ))}
+          {[1, 2, 3].map(i => <div key={i} className="h-40 rounded-xl bg-muted animate-pulse" />)}
         </div>
       ) : displayLessons.length === 0 ? (
         <Card>
@@ -442,7 +442,7 @@ export default function LessonsPage() {
               isTeacher={isTeacher}
               onEdit={setEditing}
               onDelete={id => {
-                if (confirm('Darsni o\'chirishni tasdiqlaysizmi?')) {
+                if (confirm("Darsni o'chirishni tasdiqlaysizmi?")) {
                   deleteMutation.mutate(id);
                 }
               }}
@@ -454,24 +454,22 @@ export default function LessonsPage() {
         </div>
       )}
 
-      {/* Create form modal */}
-      {showForm && (
-        <LessonForm
-          groups={myGroups}
-          onClose={() => setShowForm(false)}
-          onSave={data => createMutation.mutate(data)}
-        />
-      )}
+      {/* Create dialog */}
+      <LessonFormDialog
+        open={showForm}
+        onOpenChange={setShowForm}
+        groups={myGroups}
+        onSave={data => createMutation.mutate(data)}
+      />
 
-      {/* Edit form modal */}
-      {editing && (
-        <LessonForm
-          groups={myGroups}
-          initial={editing}
-          onClose={() => setEditing(null)}
-          onSave={data => updateMutation.mutate({ id: editing.id, data })}
-        />
-      )}
+      {/* Edit dialog */}
+      <LessonFormDialog
+        open={!!editing}
+        onOpenChange={v => { if (!v) setEditing(null); }}
+        groups={myGroups}
+        initial={editing}
+        onSave={data => updateMutation.mutate({ id: editing.id, data })}
+      />
     </div>
   );
 }
