@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   GraduationCap, School, BookOpen, Users2, TrendingUp, TrendingDown,
-  CreditCard, AlertCircle, Calendar, CheckCircle, XCircle, Clock,
+  CreditCard, AlertCircle, Calendar, CheckCircle, XCircle, Clock, MapPin,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -201,11 +201,22 @@ function StudentDashboard() {
     enabled: !!studentId,
   });
 
+  const { data: myGroupsData } = useQuery({
+    queryKey: ['student-my-groups'],
+    queryFn: () => groupsApi.getMyStudentGroups(),
+  });
+
   const attendance = attendanceData?.data?.data?.attendance || [];
   const attendanceStats = attendanceData?.data?.data?.stats;
   const debt = debtData?.data?.data;
+  const myGroups: any[] = myGroupsData?.data?.data || [];
 
   const recentAttendance = attendance.slice(0, 7);
+
+  const todayIdx    = (new Date().getDay() + 6) % 7;
+  const todayGroups = myGroups
+    .filter(g => parseDays(g.schedule || '').includes(todayIdx))
+    .sort((a: any, b: any) => (parseTime(a.schedule) > parseTime(b.schedule) ? 1 : -1));
 
   const statusConf: Record<string, any> = {
     PRESENT: { label: 'Keldi', icon: CheckCircle, color: 'text-green-500' },
@@ -223,6 +234,40 @@ function StudentDashboard() {
         <h1 className="text-2xl font-bold">Mening sahifam</h1>
         <p className="text-muted-foreground">Xush kelibsiz, {user?.firstName}!</p>
       </div>
+
+      {/* Bugungi darslar */}
+      <Card className="border-primary/40 bg-primary/5">
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-primary" />
+            Bugun — {DAYS_UZ[todayIdx]}
+            <Badge className="ml-1 text-xs">{todayGroups.length} ta dars</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {todayGroups.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2 text-center">Bugun dars yo'q 🎉</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {todayGroups.map((g: any) => (
+                <div key={g.id} className="flex items-center gap-3 p-3 rounded-lg border bg-background">
+                  <div className="w-2 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: g.course?.color || '#6366f1' }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{g.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {g.teacher?.user?.firstName} {g.teacher?.user?.lastName}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-primary">{parseTime(g.schedule) || '—'}</p>
+                    {g.room && <p className="text-xs text-muted-foreground">{g.room}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Stats */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
@@ -315,6 +360,28 @@ function StudentDashboard() {
   );
 }
 
+// ===================== SCHEDULE HELPERS =====================
+const DAY_SHORT: Record<string, number> = {
+  du: 0, se: 1, ch: 2, pa: 3, ju: 4, sh: 5, ya: 6,
+  mo: 0, tu: 1, we: 2, th: 3, fr: 4, sa: 5, su: 6,
+};
+const DAYS_UZ = ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba', 'Yakshanba'];
+
+function parseDays(schedule: string): number[] {
+  if (!schedule) return [];
+  const daysPart = schedule.split(/\s+/).filter(p => !p.includes(':'));
+  const days: number[] = [];
+  daysPart.join(' ').split(/[,\s]+/).forEach(d => {
+    const k = d.toLowerCase().slice(0, 2);
+    if (DAY_SHORT[k] !== undefined) days.push(DAY_SHORT[k]);
+  });
+  return Array.from(new Set(days));
+}
+
+function parseTime(schedule: string): string {
+  return schedule?.split(/\s+/).find(p => p.includes(':')) ?? '';
+}
+
 // ===================== TEACHER DASHBOARD =====================
 function TeacherDashboard() {
   const { user } = useAuthStore();
@@ -324,16 +391,21 @@ function TeacherDashboard() {
     queryFn: () => groupsApi.getMyGroups(),
   });
 
-  const groups: any[]      = groupsData?.data?.data || [];
-  const activeGroups       = groups.filter((g: any) => g.status === 'ACTIVE');
-  const totalStudents      = groups.reduce((s: number, g: any) => s + (g._count?.members || 0), 0);
-  const uniqueCourses      = new Set(groups.map((g: any) => g.courseId)).size;
+  const groups: any[]  = groupsData?.data?.data || [];
+  const activeGroups   = groups.filter((g: any) => g.status === 'ACTIVE');
+  const totalStudents  = groups.reduce((s: number, g: any) => s + (g._count?.members || 0), 0);
+  const uniqueCourses  = new Set(groups.map((g: any) => g.courseId)).size;
+
+  const todayIdx    = (new Date().getDay() + 6) % 7;
+  const todayGroups = activeGroups
+    .filter((g: any) => parseDays(g.schedule || '').includes(todayIdx))
+    .sort((a: any, b: any) => (parseTime(a.schedule) > parseTime(b.schedule) ? 1 : -1));
 
   const statCards = [
-    { label: 'Jami guruhlar',    value: groups.length,   color: 'text-violet-600' },
+    { label: 'Jami guruhlar',    value: groups.length,       color: 'text-violet-600' },
     { label: 'Faol guruhlar',    value: activeGroups.length, color: 'text-green-600' },
-    { label: 'Jami kurslar',     value: uniqueCourses,   color: 'text-blue-600' },
-    { label: "Jami o'quvchilar", value: totalStudents,   color: 'text-orange-600' },
+    { label: 'Jami kurslar',     value: uniqueCourses,       color: 'text-blue-600' },
+    { label: "Jami o'quvchilar", value: totalStudents,       color: 'text-orange-600' },
   ];
 
   return (
@@ -343,6 +415,41 @@ function TeacherDashboard() {
         <p className="text-muted-foreground">Xush kelibsiz, {user?.firstName} o'qituvchi!</p>
       </div>
 
+      {/* Bugungi darslar */}
+      <Card className="border-primary/40 bg-primary/5">
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-primary" />
+            Bugun — {DAYS_UZ[todayIdx]}
+            <Badge className="ml-1 text-xs">{todayGroups.length} ta dars</Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <Skeleton className="h-16 w-full" />
+          ) : todayGroups.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2 text-center">Bugun dars yo'q 🎉</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {todayGroups.map((g: any) => (
+                <div key={g.id} className="flex items-center gap-3 p-3 rounded-lg border bg-background">
+                  <div className="w-2 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: g.course?.color || '#6366f1' }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{g.name}</p>
+                    <p className="text-xs text-muted-foreground">{g.course?.name}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-primary">{parseTime(g.schedule) || '—'}</p>
+                    {g.room && <p className="text-xs text-muted-foreground">{g.room}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Stat kartalar */}
       <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
         {statCards.map(c => (
           <Card key={c.label}>
@@ -356,34 +463,35 @@ function TeacherDashboard() {
         ))}
       </div>
 
+      {/* Guruhlar ro'yxati */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Mening guruhlarim</CardTitle>
           <CardDescription>{groups.length} ta guruh</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2">
           {isLoading ? (
-            <div className="space-y-2">
-              {[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
-            </div>
+            <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full" />)}</div>
           ) : groups.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Guruhlar yo'q</p>
           ) : (
             groups.map((group: any) => (
               <div key={group.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: group.course?.color || '#6366f1' }} />
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: group.course?.color || '#6366f1' }} />
                   <div>
                     <p className="font-medium text-sm">{group.name}</p>
-                    <p className="text-xs text-muted-foreground">{group.course?.name} · {group.schedule}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {group.course?.name}
+                      {group.schedule && <> · <span className="text-primary/80">{group.schedule}</span></>}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={group.status === 'ACTIVE' ? 'default' : 'secondary'} className="text-xs">
                     {group.status === 'ACTIVE' ? 'Faol' : 'Nofaol'}
                   </Badge>
-                  <Badge variant="outline" className="text-xs">{group._count?.members || 0} o'quvchi</Badge>
+                  <Badge variant="outline" className="text-xs">{group._count?.members || 0} o'q</Badge>
                 </div>
               </div>
             ))

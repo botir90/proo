@@ -32,6 +32,7 @@ export const coursesApi = {
 export const groupsApi = {
   getAll: (params?: any) => api.get('/groups', { params }),
   getMyGroups: () => api.get('/groups/my-groups'),
+  getMyStudentGroups: () => api.get('/groups/my-student-groups'),
   getOne: (id: string) => api.get(`/groups/${id}`),
   findOne: (id: string) => api.get(`/groups/${id}`),
   create: (data: any) => api.post('/groups', data),

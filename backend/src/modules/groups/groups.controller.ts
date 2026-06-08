@@ -20,6 +20,13 @@ export class GroupsController {
     return this.groupsService.getTeacherGroups(userId);
   }
 
+  @Get('my-student-groups')
+  @Roles(Role.STUDENT, Role.PARENT)
+  @ApiOperation({ summary: 'Student o\'z guruhlarini ko\'rish' })
+  getMyStudentGroups(@CurrentUser('id') userId: string) {
+    return this.groupsService.getStudentGroups(userId);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all groups' })
   findAll(@Query() dto: PaginationDto) {

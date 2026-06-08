@@ -72,6 +72,27 @@ export class GroupsService {
     return { message: 'My groups', data: groups };
   }
 
+  async getStudentGroups(userId: string) {
+    const student = await this.prisma.student.findUnique({ where: { userId } });
+    if (!student) throw new NotFoundException('Student profile not found');
+
+    const members = await this.prisma.groupMember.findMany({
+      where: { studentId: student.id, isActive: true },
+      include: {
+        group: {
+          include: {
+            course: true,
+            teacher: { include: { user: { select: { firstName: true, lastName: true, avatar: true } } } },
+            _count: { select: { members: true } },
+          },
+        },
+      },
+    });
+
+    const groups = members.map((m: any) => m.group).filter((g: any) => g.status === 'ACTIVE');
+    return { message: 'My student groups', data: groups };
+  }
+
   async create(dto: CreateGroupDto) {
     const [course, teacher] = await Promise.all([
       this.prisma.course.findUnique({ where: { id: dto.courseId } }),
