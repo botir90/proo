@@ -166,6 +166,16 @@ export const exportApi = {
     downloadBlob(`${EXPORT_BASE}/attendance/${groupId}`, `davomat_${new Date().toISOString().slice(0, 10)}.xlsx`),
 };
 
+export const lessonsApi = {
+  create: (data: { groupId: string; title: string; description?: string; lessonDate: string; duration?: number; topic?: string }) =>
+    api.post('/lessons', data),
+  getMyLessons: () => api.get('/lessons/my'),
+  getStudentLessons: () => api.get('/lessons/student'),
+  getByGroup: (groupId: string) => api.get(`/lessons/group/${groupId}`),
+  update: (id: string, data: any) => api.patch(`/lessons/${id}`, data),
+  delete: (id: string) => api.delete(`/lessons/${id}`),
+};
+
 export const usersApi = {
   getAll: (params?: any) => api.get('/users', { params }),
   getOne: (id: string) => api.get(`/users/${id}`),

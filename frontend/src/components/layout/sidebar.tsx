@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   GraduationCap, LayoutDashboard, BookOpen, Users2,
   ClipboardCheck, CreditCard, BarChart3, Bell, UserCog, ChevronLeft,
-  School, CalendarDays, ClipboardList, Wallet, Users, Trophy,
+  School, CalendarDays, ClipboardList, Wallet, Users, Trophy, Video,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui.store';
@@ -23,6 +23,7 @@ const navItems = [
   { href: '/payments', label: "To'lovlar", icon: CreditCard, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
   { href: '/my-payments', label: "To'lovlarim", icon: CreditCard, roles: ['STUDENT'] },
   { href: '/expenses', label: 'Xarajatlar', icon: Wallet, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },
+  { href: '/lessons', label: 'Darslar', icon: Video, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'] },
   { href: '/homework', label: 'Vazifalar', icon: ClipboardList, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'] },
   { href: '/quiz', label: 'Testlar', icon: Trophy, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'] },
   { href: '/reports', label: 'Hisobotlar', icon: BarChart3, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER'] },

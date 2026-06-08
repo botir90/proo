@@ -17,6 +17,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { HomeworkModule } from './modules/homework/homework.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { QuizModule } from './modules/quiz/quiz.module';
+import { LessonsModule } from './modules/lessons/lessons.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { QuizModule } from './modules/quiz/quiz.module';
     HomeworkModule,
     ExpensesModule,
     QuizModule,
+    LessonsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

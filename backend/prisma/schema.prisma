@@ -67,6 +67,12 @@ enum Gender {
   FEMALE
 }
 
+enum LessonStatus {
+  PLANNED
+  COMPLETED
+  CANCELLED
+}
+
 // ==================== MODELS ====================
 
 model User {
@@ -113,6 +119,7 @@ model Teacher {
   attendance Attendance[]
   homeworks  Homework[]
   quizzes    Quiz[]
+  lessons    Lesson[]
 
   @@map("teachers")
 }
@@ -179,6 +186,7 @@ model Group {
   payments   Payment[]
   homeworks  Homework[]
   quizzes    Quiz[]
+  lessons    Lesson[]
 
   @@map("groups")
 }
@@ -359,4 +367,23 @@ model Expense {
   createdAt   DateTime @default(now())
 
   @@map("expenses")
+}
+
+model Lesson {
+  id          String       @id @default(uuid())
+  groupId     String
+  teacherId   String
+  title       String
+  description String?
+  lessonDate  DateTime
+  duration    Int          @default(60)
+  topic       String?
+  status      LessonStatus @default(PLANNED)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  teacher Teacher @relation(fields: [teacherId], references: [id])
+
+  @@map("lessons")
 }
