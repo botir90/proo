@@ -169,6 +169,7 @@ export const exportApi = {
 export const lessonsApi = {
   create: (data: { groupId: string; title: string; description?: string; lessonDate: string; duration?: number; topic?: string }) =>
     api.post('/lessons', data),
+  getAllLessons: () => api.get('/lessons/all'),
   getMyLessons: () => api.get('/lessons/my'),
   getStudentLessons: () => api.get('/lessons/student'),
   getByGroup: (groupId: string) => api.get(`/lessons/group/${groupId}`),

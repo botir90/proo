@@ -14,18 +14,33 @@ const LESSON_INCLUDE = {
   },
 } as const;
 
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'];
+
 @Injectable()
 export class LessonsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateLessonDto, userId: string) {
-    const teacher = await this.prisma.teacher.findUnique({ where: { userId } });
-    if (!teacher) throw new NotFoundException('Teacher profile not found');
+  async create(dto: CreateLessonDto, userId: string, userRole: string) {
+    let teacherId: string;
+
+    if (ADMIN_ROLES.includes(userRole)) {
+      // Admin: use the group's assigned teacher
+      const group = await this.prisma.group.findUnique({
+        where: { id: dto.groupId },
+        select: { teacherId: true },
+      });
+      if (!group) throw new NotFoundException('Guruh topilmadi');
+      teacherId = group.teacherId;
+    } else {
+      const teacher = await this.prisma.teacher.findUnique({ where: { userId } });
+      if (!teacher) throw new NotFoundException('Teacher profile not found');
+      teacherId = teacher.id;
+    }
 
     const lesson = await this.prisma.lesson.create({
       data: {
         groupId:     dto.groupId,
-        teacherId:   teacher.id,
+        teacherId,
         title:       dto.title,
         description: dto.description,
         lessonDate:  new Date(dto.lessonDate),
@@ -36,6 +51,14 @@ export class LessonsService {
     });
 
     return { message: 'Dars yaratildi', data: lesson };
+  }
+
+  async findAllLessons() {
+    const lessons = await this.prisma.lesson.findMany({
+      include: LESSON_INCLUDE,
+      orderBy: { lessonDate: 'desc' },
+    });
+    return { message: 'Barcha darslar', data: lessons };
   }
 
   async findMyLessons(userId: string) {
@@ -79,11 +102,14 @@ export class LessonsService {
     return { message: 'Guruh darslari', data: lessons };
   }
 
-  async update(id: string, dto: UpdateLessonDto, userId: string) {
-    const teacher = await this.prisma.teacher.findUnique({ where: { userId } });
-    const lesson  = await this.prisma.lesson.findUnique({ where: { id } });
+  async update(id: string, dto: UpdateLessonDto, userId: string, userRole: string) {
+    const lesson = await this.prisma.lesson.findUnique({ where: { id } });
     if (!lesson) throw new NotFoundException('Dars topilmadi');
-    if (lesson.teacherId !== teacher?.id) throw new ForbiddenException("Ruxsat yo'q");
+
+    if (!ADMIN_ROLES.includes(userRole)) {
+      const teacher = await this.prisma.teacher.findUnique({ where: { userId } });
+      if (lesson.teacherId !== teacher?.id) throw new ForbiddenException("Ruxsat yo'q");
+    }
 
     const data: any = { ...dto };
     if (dto.lessonDate) data.lessonDate = new Date(dto.lessonDate);
@@ -92,11 +118,14 @@ export class LessonsService {
     return { message: 'Dars yangilandi', data: updated };
   }
 
-  async remove(id: string, userId: string) {
-    const teacher = await this.prisma.teacher.findUnique({ where: { userId } });
-    const lesson  = await this.prisma.lesson.findUnique({ where: { id } });
+  async remove(id: string, userId: string, userRole: string) {
+    const lesson = await this.prisma.lesson.findUnique({ where: { id } });
     if (!lesson) throw new NotFoundException('Dars topilmadi');
-    if (lesson.teacherId !== teacher?.id) throw new ForbiddenException("Ruxsat yo'q");
+
+    if (!ADMIN_ROLES.includes(userRole)) {
+      const teacher = await this.prisma.teacher.findUnique({ where: { userId } });
+      if (lesson.teacherId !== teacher?.id) throw new ForbiddenException("Ruxsat yo'q");
+    }
 
     await this.prisma.lesson.delete({ where: { id } });
     return { message: "Dars o'chirildi" };

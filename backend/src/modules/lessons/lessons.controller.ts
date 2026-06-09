@@ -15,8 +15,19 @@ export class LessonsController {
   @Post()
   @Roles(Role.TEACHER, Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
   @ApiOperation({ summary: 'Yangi dars yaratish' })
-  create(@Body() dto: CreateLessonDto, @CurrentUser('id') userId: string) {
-    return this.lessonsService.create(dto, userId);
+  create(
+    @Body() dto: CreateLessonDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.lessonsService.create(dto, userId, userRole);
+  }
+
+  @Get('all')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
+  @ApiOperation({ summary: 'Barcha darslar (admin)' })
+  findAllLessons() {
+    return this.lessonsService.findAllLessons();
   }
 
   @Get('my')
@@ -46,14 +57,19 @@ export class LessonsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateLessonDto,
     @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
   ) {
-    return this.lessonsService.update(id, dto, userId);
+    return this.lessonsService.update(id, dto, userId, userRole);
   }
 
   @Delete(':id')
   @Roles(Role.TEACHER, Role.SUPER_ADMIN, Role.ADMIN)
   @ApiOperation({ summary: "Darsni o'chirish" })
-  remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser('id') userId: string) {
-    return this.lessonsService.remove(id, userId);
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.lessonsService.remove(id, userId, userRole);
   }
 }

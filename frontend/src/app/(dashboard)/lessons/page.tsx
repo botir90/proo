@@ -251,10 +251,12 @@ export default function LessonsPage() {
   const qc = useQueryClient();
   const isTeacher = user?.role === 'TEACHER';
   const isStudent = user?.role === 'STUDENT' || user?.role === 'PARENT';
+  const isAdmin   = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role ?? '');
+  const canCreate = isTeacher || isAdmin;
 
-  const [tab, setTab]             = useState<Tab>('today');
-  const [showForm, setShowForm]   = useState(false);
-  const [editing, setEditing]     = useState<any>(null);
+  const [tab, setTab]           = useState<Tab>('today');
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing]   = useState<any>(null);
 
   // ── data ──
   const { data: teacherLessons, isLoading: teacherLoading } = useQuery({
@@ -262,24 +264,40 @@ export default function LessonsPage() {
     queryFn:  () => lessonsApi.getMyLessons(),
     enabled:  isTeacher,
   });
+  const { data: adminLessons, isLoading: adminLoading } = useQuery({
+    queryKey: ['lessons', 'all'],
+    queryFn:  () => lessonsApi.getAllLessons(),
+    enabled:  isAdmin,
+  });
   const { data: studentLessons, isLoading: studentLoading } = useQuery({
     queryKey: ['lessons', 'student'],
     queryFn:  () => lessonsApi.getStudentLessons(),
     enabled:  isStudent,
   });
-  const { data: myGroupsData } = useQuery({
+
+  // Groups for the create form
+  const { data: teacherGroupsData } = useQuery({
     queryKey: ['groups', 'teacher-list'],
     queryFn:  () => groupsApi.getMyGroups(),
     enabled:  isTeacher,
   });
+  const { data: allGroupsData } = useQuery({
+    queryKey: ['groups', 'all-for-lessons'],
+    queryFn:  () => groupsApi.getAll({ limit: 200 }),
+    enabled:  isAdmin,
+  });
 
-  const isLoading = teacherLoading || studentLoading;
+  const isLoading = teacherLoading || studentLoading || adminLoading;
 
   const rawLessons: any[] = isStudent
     ? (studentLessons?.data?.data ?? [])
+    : isAdmin
+    ? (adminLessons?.data?.data ?? [])
     : (teacherLessons?.data?.data ?? []);
 
-  const myGroups: any[] = myGroupsData?.data?.data ?? [];
+  const myGroups: any[] = isAdmin
+    ? (allGroupsData?.data?.data?.items ?? [])
+    : (teacherGroupsData?.data?.data ?? []);
 
   // ── tabs ──
   const todayLessons    = rawLessons.filter(l => isToday(parseISO(l.lessonDate)));
@@ -328,10 +346,10 @@ export default function LessonsPage() {
             Darslar
           </h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            {isTeacher ? "O'qituvchi dars rejasi" : isStudent ? 'Mening darslarim' : 'Barcha darslar'}
+            {isAdmin ? 'Barcha darslar' : isTeacher ? "O'qituvchi dars rejasi" : 'Mening darslarim'}
           </p>
         </div>
-        {isTeacher && (
+        {canCreate && (
           <Button className="gap-2" onClick={() => setShowForm(true)}>
             <Plus className="h-4 w-4" />
             Dars qo'shish
@@ -377,7 +395,7 @@ export default function LessonsPage() {
       )}
 
       {/* Teacher stats */}
-      {isTeacher && (
+      {canCreate && (
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: 'Jami darslar',      value: rawLessons.length,                                          color: 'text-primary'    },
@@ -426,7 +444,7 @@ export default function LessonsPage() {
           <CardContent className="py-16 text-center">
             <BookOpen className="mx-auto h-12 w-12 mb-3 text-muted-foreground/30" />
             <p className="font-medium text-muted-foreground">Darslar topilmadi</p>
-            {isTeacher && tab !== 'past' && (
+            {canCreate && tab !== 'past' && (
               <p className="text-xs text-muted-foreground mt-1">
                 "Dars qo'shish" tugmasini bosing
               </p>
@@ -439,7 +457,7 @@ export default function LessonsPage() {
             <LessonCard
               key={lesson.id}
               lesson={lesson}
-              isTeacher={isTeacher}
+              isTeacher={canCreate}
               onEdit={setEditing}
               onDelete={id => {
                 if (confirm("Darsni o'chirishni tasdiqlaysizmi?")) {
