@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   GraduationCap, School, BookOpen, Users2, TrendingUp, TrendingDown,
-  CreditCard, AlertCircle, Calendar, CheckCircle, XCircle, Clock, MapPin,
+  CreditCard, AlertCircle, Calendar, CheckCircle, XCircle, Clock,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/auth.store';
 // ===================== ADMIN DASHBOARD =====================
 function AdminDashboard() {
   const { user } = useAuthStore();
+  const isManager = user?.role === 'MANAGER';
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ['dashboard', 'stats'],
@@ -25,6 +26,7 @@ function AdminDashboard() {
   const { data: chartData, isLoading: chartLoading } = useQuery({
     queryKey: ['dashboard', 'revenue-chart'],
     queryFn: () => dashboardApi.getRevenueChart(),
+    enabled: !isManager,
   });
   const { data: groupsData } = useQuery({
     queryKey: ['dashboard', 'groups-overview'],
@@ -37,13 +39,14 @@ function AdminDashboard() {
   const recentStudents = statsData?.data?.data?.recentStudents || [];
   const overduePayments = statsData?.data?.data?.overduePayments || [];
 
-  const statCards = [
-    { title: "Jami o'quvchilar", value: stats?.totalStudents?.value || 0, growth: stats?.totalStudents?.growth, icon: GraduationCap, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-950' },
-    { title: "Jami o'qituvchilar", value: stats?.totalTeachers?.value || 0, growth: stats?.totalTeachers?.growth, icon: School, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950' },
-    { title: 'Faol kurslar', value: stats?.totalCourses?.value || 0, icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950' },
-    { title: 'Faol guruhlar', value: stats?.activeGroups?.value || 0, subtitle: `${stats?.activeGroups?.total || 0} ta jami`, icon: Users2, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-950' },
-    { title: 'Bu oylik daromad', value: formatCurrency(stats?.monthlyRevenue?.value || 0), growth: stats?.monthlyRevenue?.growth, icon: CreditCard, color: 'text-pink-600', bg: 'bg-pink-50 dark:bg-pink-950', isRevenue: true },
+  const allStatCards = [
+    { title: "Jami o'quvchilar", value: stats?.totalStudents?.value || 0, growth: stats?.totalStudents?.growth, icon: GraduationCap, color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-950', managerVisible: true },
+    { title: "Jami o'qituvchilar", value: stats?.totalTeachers?.value || 0, growth: stats?.totalTeachers?.growth, icon: School, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-950', managerVisible: true },
+    { title: 'Faol kurslar', value: stats?.totalCourses?.value || 0, icon: BookOpen, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-950', managerVisible: true },
+    { title: 'Faol guruhlar', value: stats?.activeGroups?.value || 0, subtitle: `${stats?.activeGroups?.total || 0} ta jami`, icon: Users2, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-950', managerVisible: true },
+    { title: 'Bu oylik daromad', value: formatCurrency(stats?.monthlyRevenue?.value || 0), growth: stats?.monthlyRevenue?.growth, icon: CreditCard, color: 'text-pink-600', bg: 'bg-pink-50 dark:bg-pink-950', isRevenue: true, managerVisible: false },
   ];
+  const statCards = allStatCards.filter(c => !isManager || c.managerVisible);
 
   return (
     <div className="space-y-6">
@@ -82,32 +85,34 @@ function AdminDashboard() {
         })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Oylik daromad</CardTitle>
-            <CardDescription>Bu yilgi daromad dinamikasi</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {chartLoading ? <Skeleton className="h-64 w-full" /> : (
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={chart}>
-                  <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
-                  <Tooltip formatter={(v: number) => [formatCurrency(v), 'Daromad']} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
-                  <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#colorRevenue)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+      <div className={`grid gap-6 ${isManager ? 'lg:grid-cols-1' : 'lg:grid-cols-3'}`}>
+        {!isManager && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-base">Oylik daromad</CardTitle>
+              <CardDescription>Bu yilgi daromad dinamikasi</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {chartLoading ? <Skeleton className="h-64 w-full" /> : (
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={chart}>
+                    <defs>
+                      <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => `${(v / 1000000).toFixed(0)}M`} />
+                    <Tooltip formatter={(v: number) => [formatCurrency(v), 'Daromad']} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                    <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#colorRevenue)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

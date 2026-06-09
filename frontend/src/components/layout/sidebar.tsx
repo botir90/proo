@@ -30,7 +30,7 @@ const navItems = [
   { href: '/parent', label: 'Ota-ona portali', icon: Users, roles: ['PARENT'] },
   { href: '/rating',        label: 'Reyting',          icon: Trophy, roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'] },
   { href: '/notifications', label: 'Bildirishnomalar', icon: Bell,   roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'] },
-  { href: '/users', label: 'Foydalanuvchilar', icon: UserCog, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { href: '/users', label: 'Foydalanuvchilar', icon: UserCog, roles: ['SUPER_ADMIN'] },
 ];
 
 export function Sidebar() {

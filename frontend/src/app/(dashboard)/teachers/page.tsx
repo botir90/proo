@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Search, Pencil, Trash2, Star, School, Eye } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Star, School, Eye, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { teachersApi } from '@/lib/api';
+import { teachersApi, expensesApi } from '@/lib/api';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { getInitials, getAvatarUrl, formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 import { TeacherForm } from '@/components/forms/teacher-form';
@@ -25,6 +27,8 @@ export default function TeachersPage() {
   const [openForm, setOpenForm] = useState(false);
   const [selected, setSelected] = useState<any>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [salaryTeacher, setSalaryTeacher] = useState<any>(null);
+  const [salaryAmount, setSalaryAmount] = useState('');
   const debouncedSearch = useDebounce(search, 400);
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -43,6 +47,33 @@ export default function TeachersPage() {
     },
     onError: (e: any) => toast({ title: 'Xato', description: e.response?.data?.message, variant: 'destructive' }),
   });
+
+  const salaryMutation = useMutation({
+    mutationFn: (data: { title: string; amount: number; description: string }) =>
+      expensesApi.create({ ...data, category: 'Maosh' }),
+    onSuccess: () => {
+      toast({ title: "Maosh to'landi", description: `${salaryTeacher?.user?.firstName} ${salaryTeacher?.user?.lastName}ga maosh xarajatlarga yozildi` });
+      setSalaryTeacher(null);
+      setSalaryAmount('');
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+    },
+    onError: (e: any) => toast({ title: 'Xato', description: e.response?.data?.message, variant: 'destructive' }),
+  });
+
+  function openSalaryDialog(teacher: any) {
+    setSalaryTeacher(teacher);
+    setSalaryAmount(String(Number(teacher.salary) || 0));
+  }
+
+  function handlePaySalary() {
+    if (!salaryTeacher || !salaryAmount) return;
+    const name = `${salaryTeacher.user?.firstName} ${salaryTeacher.user?.lastName}`;
+    salaryMutation.mutate({
+      title: `${name} — maosh`,
+      amount: Number(salaryAmount),
+      description: `O'qituvchi maoshi. ${new Date().toLocaleDateString('uz-UZ')}`,
+    });
+  }
 
   const teachers = data?.data?.data?.items || [];
   const meta = data?.data?.data?.meta;
@@ -128,6 +159,9 @@ export default function TeachersPage() {
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10" onClick={() => router.push(`/teachers/${teacher.id}`)}>
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50" title="Maosh to'lash" onClick={() => openSalaryDialog(teacher)}>
+                          <Wallet className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setSelected(teacher); setOpenForm(true); }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -173,6 +207,55 @@ export default function TeachersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Salary payment dialog */}
+      <Dialog open={!!salaryTeacher} onOpenChange={v => { if (!v) { setSalaryTeacher(null); setSalaryAmount(''); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-green-600" />
+              Maosh to'lash
+            </DialogTitle>
+          </DialogHeader>
+          {salaryTeacher && (
+            <div className="space-y-4 pt-2">
+              <div className="rounded-lg bg-muted/50 p-3 text-sm">
+                <p className="font-medium">{salaryTeacher.user?.firstName} {salaryTeacher.user?.lastName}</p>
+                <p className="text-muted-foreground text-xs mt-0.5">
+                  {salaryTeacher.subjects?.join(', ')} · {salaryTeacher.experience} yil tajriba
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Maosh miqdori (so'm)</Label>
+                <Input
+                  type="number"
+                  value={salaryAmount}
+                  onChange={e => setSalaryAmount(e.target.value)}
+                  placeholder="Miqdorni kiriting"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Belgilangan maosh: {Number(salaryTeacher.salary).toLocaleString()} so'm
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/30 rounded p-2">
+                To'landi deb belgilanadi va xarajatlar bo'limiga avtomatik yoziladi.
+              </p>
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => { setSalaryTeacher(null); setSalaryAmount(''); }}>
+                  Bekor qilish
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  disabled={!salaryAmount || Number(salaryAmount) <= 0 || salaryMutation.isPending}
+                  onClick={handlePaySalary}
+                >
+                  {salaryMutation.isPending ? 'Saqlanmoqda...' : "To'landi ✓"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
