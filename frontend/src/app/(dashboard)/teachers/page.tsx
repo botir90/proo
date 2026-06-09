@@ -15,7 +15,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { teachersApi, expensesApi } from '@/lib/api';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { getInitials, getAvatarUrl, formatCurrency } from '@/lib/utils';
 import { useDebounce } from '@/hooks/use-debounce';
 import { TeacherForm } from '@/components/forms/teacher-form';
