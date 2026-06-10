@@ -283,7 +283,7 @@ export default function LessonsPage() {
   });
   const { data: allGroupsData } = useQuery({
     queryKey: ['groups', 'all-for-lessons'],
-    queryFn:  () => groupsApi.getAll({ limit: 200 }),
+    queryFn:  () => groupsApi.getAll({ limit: 100 }),
     enabled:  isAdmin,
   });
 
