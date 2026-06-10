@@ -130,4 +130,20 @@ export class LessonsService {
     await this.prisma.lesson.delete({ where: { id } });
     return { message: "Dars o'chirildi" };
   }
+
+  async checkAttendance(id: string) {
+    const lesson = await this.prisma.lesson.findUnique({ where: { id } });
+    if (!lesson) throw new NotFoundException('Dars topilmadi');
+
+    const dayStart = new Date(lesson.lessonDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(lesson.lessonDate);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const count = await this.prisma.attendance.count({
+      where: { groupId: lesson.groupId, date: { gte: dayStart, lte: dayEnd } },
+    });
+
+    return { message: 'Attendance status', data: { taken: count > 0, groupId: lesson.groupId, lessonDate: lesson.lessonDate } };
+  }
 }

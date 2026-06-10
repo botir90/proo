@@ -72,4 +72,11 @@ export class LessonsController {
   ) {
     return this.lessonsService.remove(id, userId, userRole);
   }
+
+  @Get(':id/attendance-status')
+  @Roles(Role.TEACHER, Role.SUPER_ADMIN, Role.ADMIN, Role.MANAGER)
+  @ApiOperation({ summary: 'Dars uchun davomat tekshirish' })
+  checkAttendance(@Param('id', ParseUUIDPipe) id: string) {
+    return this.lessonsService.checkAttendance(id);
+  }
 }

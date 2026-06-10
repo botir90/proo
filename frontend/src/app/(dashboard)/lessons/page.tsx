@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Video, Plus, Clock, CalendarDays, BookOpen, CheckCircle2, XCircle,
-  ChevronRight, Users2, Pencil, Trash2, Check,
+  ChevronRight, Users2, Pencil, Trash2, Check, ClipboardCheck,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/auth.store';
-import { lessonsApi, groupsApi } from '@/lib/api';
+import { lessonsApi, groupsApi, attendanceApi } from '@/lib/api';
 import { format, isToday, isFuture, isPast, parseISO } from 'date-fns';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -34,6 +34,119 @@ const STATUS_META: Record<string, { label: string; variant: 'default' | 'seconda
   CANCELLED: { label: 'Bekor qilingan',   variant: 'destructive', icon: XCircle },
 };
 
+// ── Attendance Taking Dialog ──────────────────────────────────────────────────
+
+function AttendanceTakingDialog({
+  open,
+  onOpenChange,
+  lesson,
+  onDone,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  lesson: any;
+  onDone: () => void;
+}) {
+  const [records, setRecords] = useState<Record<string, 'PRESENT' | 'ABSENT' | 'LATE'>>({});
+
+  const { data: studentsData, isLoading } = useQuery({
+    queryKey: ['group-students-for-attendance', lesson?.groupId],
+    queryFn: () => groupsApi.getStudents(lesson.groupId),
+    enabled: open && !!lesson?.groupId,
+  });
+
+  const students: any[] = studentsData?.data?.data ?? [];
+
+  // init all present by default when students load
+  if (students.length > 0 && Object.keys(records).length === 0) {
+    const init: Record<string, 'PRESENT' | 'ABSENT' | 'LATE'> = {};
+    students.forEach((m: any) => { init[m.studentId] = 'PRESENT'; });
+    setRecords(init);
+  }
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      attendanceApi.create({
+        groupId: lesson.groupId,
+        date: lesson.lessonDate,
+        records: students.map((m: any) => ({
+          studentId: m.studentId,
+          status: records[m.studentId] ?? 'PRESENT',
+        })),
+      }),
+    onSuccess: () => {
+      onOpenChange(false);
+      onDone();
+    },
+  });
+
+  const toggle = (studentId: string) => {
+    setRecords(prev => ({
+      ...prev,
+      [studentId]: prev[studentId] === 'PRESENT' ? 'ABSENT' : prev[studentId] === 'ABSENT' ? 'LATE' : 'PRESENT',
+    }));
+  };
+
+  const STATUS_LABEL: Record<string, string> = { PRESENT: 'Keldi', ABSENT: 'Kelmadi', LATE: 'Kechikdi' };
+  const STATUS_COLOR: Record<string, string> = {
+    PRESENT: 'bg-green-100 text-green-700 border-green-200',
+    ABSENT:  'bg-red-100 text-red-700 border-red-200',
+    LATE:    'bg-yellow-100 text-yellow-700 border-yellow-200',
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ClipboardCheck className="h-5 w-5 text-primary" />
+            Davomat — {lesson?.title}
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground">{fmtDay(lesson?.lessonDate)} · {lesson?.group?.name}</p>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto space-y-2 py-2">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Yuklanmoqda...</p>
+          ) : students.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Guruhda o'quvchi yo'q</p>
+          ) : (
+            students.map((m: any) => {
+              const st = records[m.studentId] ?? 'PRESENT';
+              return (
+                <div key={m.studentId} className="flex items-center justify-between p-3 rounded-lg border">
+                  <span className="text-sm font-medium">
+                    {m.student?.user?.firstName} {m.student?.user?.lastName}
+                  </span>
+                  <button
+                    onClick={() => toggle(m.studentId)}
+                    className={`text-xs px-3 py-1 rounded-full border font-medium transition-colors ${STATUS_COLOR[st]}`}
+                  >
+                    {STATUS_LABEL[st]}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="flex gap-3 pt-2 border-t">
+          <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
+            Bekor qilish
+          </Button>
+          <Button
+            className="flex-1"
+            disabled={students.length === 0 || saveMutation.isPending}
+            onClick={() => saveMutation.mutate()}
+          >
+            {saveMutation.isPending ? 'Saqlanmoqda...' : "Saqlash va darsni yakunlash"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Lesson Card ───────────────────────────────────────────────────────────────
 
 function LessonCard({
@@ -43,11 +156,12 @@ function LessonCard({
   isTeacher: boolean;
   onEdit?: (l: any) => void;
   onDelete?: (id: string) => void;
-  onMarkDone?: (id: string) => void;
+  onMarkDone?: (lesson: any) => void;
 }) {
   const meta = STATUS_META[lesson.status] ?? STATUS_META.PLANNED;
   const StatusIcon = meta.icon;
   const todayLesson = isToday(parseISO(lesson.lessonDate));
+  const lessonOver  = isPast(parseISO(lesson.lessonDate));
 
   return (
     <div className={`rounded-xl border p-4 transition-all ${todayLesson ? 'border-primary bg-primary/5 shadow-md' : 'bg-card hover:shadow-sm'}`}>
@@ -94,12 +208,15 @@ function LessonCard({
 
       {isTeacher && (
         <div className="mt-3 flex items-center gap-2 pt-2 border-t">
-          {lesson.status === 'PLANNED' && (
+          {lesson.status === 'PLANNED' && lessonOver && (
             <Button size="sm" variant="outline"
               className="h-7 text-xs gap-1 text-green-600 border-green-200 hover:bg-green-50"
-              onClick={() => onMarkDone?.(lesson.id)}>
-              <Check className="h-3 w-3" />O'tkazildi
+              onClick={() => onMarkDone?.(lesson)}>
+              <Check className="h-3 w-3" />Dars o'tildi
             </Button>
+          )}
+          {lesson.status === 'PLANNED' && !lessonOver && (
+            <span className="text-[10px] text-muted-foreground italic">Dars hali boshlanmadi</span>
           )}
           <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 ml-auto"
             onClick={() => onEdit?.(lesson)}>
@@ -158,7 +275,6 @@ function LessonFormDialog({
         </DialogHeader>
 
         <div className="space-y-4 pt-2">
-          {/* Group */}
           <div className="space-y-1.5">
             <Label>Guruh *</Label>
             <select
@@ -175,7 +291,6 @@ function LessonFormDialog({
             </select>
           </div>
 
-          {/* Title */}
           <div className="space-y-1.5">
             <Label>Dars nomi *</Label>
             <Input
@@ -185,7 +300,6 @@ function LessonFormDialog({
             />
           </div>
 
-          {/* Date + Duration */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Sana va vaqt *</Label>
@@ -207,7 +321,6 @@ function LessonFormDialog({
             </div>
           </div>
 
-          {/* Topic */}
           <div className="space-y-1.5">
             <Label>Dars mavzusi</Label>
             <Input
@@ -217,7 +330,6 @@ function LessonFormDialog({
             />
           </div>
 
-          {/* Description */}
           <div className="space-y-1.5">
             <Label>Izoh</Label>
             <Textarea
@@ -254,9 +366,10 @@ export default function LessonsPage() {
   const isAdmin   = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.role ?? '');
   const canCreate = isTeacher || isAdmin;
 
-  const [tab, setTab]           = useState<Tab>('today');
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing]   = useState<any>(null);
+  const [tab, setTab]                     = useState<Tab>('today');
+  const [showForm, setShowForm]           = useState(false);
+  const [editing, setEditing]             = useState<any>(null);
+  const [attendanceLesson, setAttendanceLesson] = useState<any>(null);
 
   // ── data ──
   const { data: teacherLessons, isLoading: teacherLoading } = useQuery({
@@ -275,7 +388,6 @@ export default function LessonsPage() {
     enabled:  isStudent,
   });
 
-  // Groups for the create form
   const { data: teacherGroupsData } = useQuery({
     queryKey: ['groups', 'teacher-list'],
     queryFn:  () => groupsApi.getMyGroups(),
@@ -324,6 +436,29 @@ export default function LessonsPage() {
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['lessons'] }),
   });
 
+  // When "Dars o'tildi" is clicked: check attendance first
+  async function handleMarkDone(lesson: any) {
+    try {
+      const res = await lessonsApi.checkAttendance(lesson.id);
+      const taken = res.data?.data?.taken;
+      if (taken) {
+        updateMutation.mutate({ id: lesson.id, data: { status: 'COMPLETED' } });
+      } else {
+        setAttendanceLesson(lesson);
+      }
+    } catch {
+      setAttendanceLesson(lesson);
+    }
+  }
+
+  // After attendance is saved from the dialog, mark lesson complete
+  function handleAttendanceDone() {
+    if (attendanceLesson) {
+      updateMutation.mutate({ id: attendanceLesson.id, data: { status: 'COMPLETED' } });
+      setAttendanceLesson(null);
+    }
+  }
+
   const TABS: { key: Tab; label: string; count: number }[] = [
     { key: 'today',    label: 'Bugun',      count: todayLessons.length    },
     { key: 'upcoming', label: 'Kelayotgan', count: upcomingLessons.length },
@@ -331,7 +466,6 @@ export default function LessonsPage() {
     { key: 'all',      label: 'Barchasi',   count: rawLessons.length      },
   ];
 
-  // next lesson for student
   const nextLesson = isStudent
     ? rawLessons.find(l => !isPast(parseISO(l.lessonDate)) || isToday(parseISO(l.lessonDate)))
     : null;
@@ -394,13 +528,13 @@ export default function LessonsPage() {
         </Card>
       )}
 
-      {/* Teacher stats */}
+      {/* Teacher/Admin stats */}
       {canCreate && (
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: 'Jami darslar',      value: rawLessons.length,                                          color: 'text-primary'    },
-            { label: "O'tkazilgan",        value: rawLessons.filter(l => l.status === 'COMPLETED').length,    color: 'text-green-600'  },
-            { label: 'Rejalashtirilgan',   value: rawLessons.filter(l => l.status === 'PLANNED').length,      color: 'text-blue-600'   },
+            { label: 'Jami darslar',    value: rawLessons.length,                                       color: 'text-primary'   },
+            { label: "O'tkazilgan",     value: rawLessons.filter(l => l.status === 'COMPLETED').length, color: 'text-green-600' },
+            { label: 'Rejalashtirilgan',value: rawLessons.filter(l => l.status === 'PLANNED').length,   color: 'text-blue-600'  },
           ].map(s => (
             <Card key={s.label} className="text-center py-3">
               <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -464,9 +598,7 @@ export default function LessonsPage() {
                   deleteMutation.mutate(id);
                 }
               }}
-              onMarkDone={id =>
-                updateMutation.mutate({ id, data: { status: 'COMPLETED' } })
-              }
+              onMarkDone={handleMarkDone}
             />
           ))}
         </div>
@@ -488,6 +620,16 @@ export default function LessonsPage() {
         initial={editing}
         onSave={data => updateMutation.mutate({ id: editing.id, data })}
       />
+
+      {/* Attendance dialog */}
+      {attendanceLesson && (
+        <AttendanceTakingDialog
+          open={!!attendanceLesson}
+          onOpenChange={v => { if (!v) setAttendanceLesson(null); }}
+          lesson={attendanceLesson}
+          onDone={handleAttendanceDone}
+        />
+      )}
     </div>
   );
 }

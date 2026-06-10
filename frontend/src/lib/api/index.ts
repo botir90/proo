@@ -175,6 +175,7 @@ export const lessonsApi = {
   getByGroup: (groupId: string) => api.get(`/lessons/group/${groupId}`),
   update: (id: string, data: any) => api.patch(`/lessons/${id}`, data),
   delete: (id: string) => api.delete(`/lessons/${id}`),
+  checkAttendance: (id: string) => api.get(`/lessons/${id}/attendance-status`),
 };
 
 export const usersApi = {
