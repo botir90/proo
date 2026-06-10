@@ -412,9 +412,10 @@ export default function LessonsPage() {
     : (teacherGroupsData?.data?.data ?? []);
 
   // ── tabs ──
+  // today = calendar day; upcoming/past are time-based (today's lessons can appear in both)
   const todayLessons    = rawLessons.filter(l => isToday(parseISO(l.lessonDate)));
-  const upcomingLessons = rawLessons.filter(l => isFuture(parseISO(l.lessonDate)) && !isToday(parseISO(l.lessonDate)));
-  const pastLessons     = rawLessons.filter(l => isPast(parseISO(l.lessonDate))  && !isToday(parseISO(l.lessonDate)));
+  const upcomingLessons = rawLessons.filter(l => isFuture(parseISO(l.lessonDate)));
+  const pastLessons     = rawLessons.filter(l => isPast(parseISO(l.lessonDate)));
 
   const displayLessons =
     tab === 'today'    ? todayLessons    :
