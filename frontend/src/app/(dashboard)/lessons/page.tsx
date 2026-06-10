@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Video, Plus, Clock, CalendarDays, BookOpen, CheckCircle2, XCircle,
@@ -57,12 +57,21 @@ function AttendanceTakingDialog({
 
   const students: any[] = studentsData?.data?.data ?? [];
 
-  // init all present by default when students load
-  if (students.length > 0 && Object.keys(records).length === 0) {
-    const init: Record<string, 'PRESENT' | 'ABSENT' | 'LATE'> = {};
-    students.forEach((m: any) => { init[m.studentId] = 'PRESENT'; });
-    setRecords(init);
-  }
+  // Reset records when lesson changes
+  useEffect(() => { setRecords({}); }, [lesson?.id]);
+
+  // Init all PRESENT once students load
+  useEffect(() => {
+    if (students.length > 0) {
+      setRecords(prev => {
+        if (Object.keys(prev).length > 0) return prev;
+        const init: Record<string, 'PRESENT' | 'ABSENT' | 'LATE'> = {};
+        students.forEach((m: any) => { init[m.studentId] = 'PRESENT'; });
+        return init;
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students.length]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
