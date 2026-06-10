@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { dashboardApi, paymentsApi, attendanceApi, groupsApi } from '@/lib/api';
+import { dashboardApi, paymentsApi, attendanceApi, groupsApi, lessonsApi } from '@/lib/api';
+import { isToday, parseISO, format } from 'date-fns';
 import { formatCurrency, getInitials, getAvatarUrl, getMonthName } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuthStore } from '@/stores/auth.store';
@@ -391,26 +392,32 @@ function parseTime(schedule: string): string {
 function TeacherDashboard() {
   const { user } = useAuthStore();
 
-  const { data: groupsData, isLoading } = useQuery({
+  const { data: groupsData, isLoading: groupsLoading } = useQuery({
     queryKey: ['teacher-my-groups'],
     queryFn: () => groupsApi.getMyGroups(),
   });
+  const { data: lessonsData, isLoading: lessonsLoading } = useQuery({
+    queryKey: ['lessons', 'my'],
+    queryFn: () => lessonsApi.getMyLessons(),
+  });
 
+  const isLoading = groupsLoading || lessonsLoading;
   const groups: any[]  = groupsData?.data?.data || [];
+  const allLessons: any[] = lessonsData?.data?.data || [];
   const activeGroups   = groups.filter((g: any) => g.status === 'ACTIVE');
   const totalStudents  = groups.reduce((s: number, g: any) => s + (g._count?.members || 0), 0);
   const uniqueCourses  = new Set(groups.map((g: any) => g.courseId)).size;
 
-  const todayIdx    = (new Date().getDay() + 6) % 7;
-  const todayGroups = activeGroups
-    .filter((g: any) => parseDays(g.schedule || '').includes(todayIdx))
-    .sort((a: any, b: any) => (parseTime(a.schedule) > parseTime(b.schedule) ? 1 : -1));
+  const todayIdx   = (new Date().getDay() + 6) % 7;
+  const todayLessons = allLessons
+    .filter((l: any) => isToday(parseISO(l.lessonDate)) && l.status !== 'CANCELLED')
+    .sort((a: any, b: any) => a.lessonDate.localeCompare(b.lessonDate));
 
   const statCards = [
-    { label: 'Jami guruhlar',    value: groups.length,       color: 'text-violet-600' },
-    { label: 'Faol guruhlar',    value: activeGroups.length, color: 'text-green-600' },
-    { label: 'Jami kurslar',     value: uniqueCourses,       color: 'text-blue-600' },
-    { label: "Jami o'quvchilar", value: totalStudents,       color: 'text-orange-600' },
+    { label: 'Jami guruhlar',    value: groups.length,                                             color: 'text-violet-600' },
+    { label: 'Faol guruhlar',    value: activeGroups.length,                                       color: 'text-green-600' },
+    { label: 'Jami darslar',     value: allLessons.length,                                         color: 'text-blue-600' },
+    { label: "Jami o'quvchilar", value: totalStudents,                                             color: 'text-orange-600' },
   ];
 
   return (
@@ -426,26 +433,26 @@ function TeacherDashboard() {
           <CardTitle className="text-base flex items-center gap-2">
             <Calendar className="h-4 w-4 text-primary" />
             Bugun — {DAYS_UZ[todayIdx]}
-            <Badge className="ml-1 text-xs">{todayGroups.length} ta dars</Badge>
+            <Badge className="ml-1 text-xs">{todayLessons.length} ta dars</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-16 w-full" />
-          ) : todayGroups.length === 0 ? (
+          ) : todayLessons.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2 text-center">Bugun dars yo'q 🎉</p>
           ) : (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {todayGroups.map((g: any) => (
-                <div key={g.id} className="flex items-center gap-3 p-3 rounded-lg border bg-background">
-                  <div className="w-2 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: g.course?.color || '#6366f1' }} />
+              {todayLessons.map((l: any) => (
+                <div key={l.id} className="flex items-center gap-3 p-3 rounded-lg border bg-background">
+                  <div className="w-2 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: l.group?.course?.color || '#6366f1' }} />
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{g.name}</p>
-                    <p className="text-xs text-muted-foreground">{g.course?.name}</p>
+                    <p className="font-medium text-sm truncate">{l.title}</p>
+                    <p className="text-xs text-muted-foreground">{l.group?.course?.name} · {l.group?.name}</p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-primary">{parseTime(g.schedule) || '—'}</p>
-                    {g.room && <p className="text-xs text-muted-foreground">{g.room}</p>}
+                    <p className="text-sm font-bold text-primary">{format(parseISO(l.lessonDate), 'HH:mm')}</p>
+                    <p className="text-xs text-muted-foreground">{l.duration} daq</p>
                   </div>
                 </div>
               ))}
@@ -475,7 +482,7 @@ function TeacherDashboard() {
           <CardDescription>{groups.length} ta guruh</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          {isLoading ? (
+          {groupsLoading ? (
             <div className="space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-14 w-full" />)}</div>
           ) : groups.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">Guruhlar yo'q</p>
